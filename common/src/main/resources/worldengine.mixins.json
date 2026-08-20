@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.nstut.worldengine.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "LevelRainingCacheMixin",
+    "LevelTimeAccessCacheMixin",
+    "LevelTimeStateMixin",
+    "NaturalSpawnerCacheMixin",
+    "PhysicsChunkTicketManagerMixin",
+    "SubLevelTrackingSystemMixin",
+    "SubLevelUpdateTicketMixin",
+    "ServerSubLevelActivityMixin",
+    "ServerSubLevelContainerMixin",
+    "SubLevelPhysicsSystemMixin"
+  ],
+  "client": [
+    "ClientInterpolationStateMixin",
+    "SnapshotInterpolatorMixin",
+    "SnapshotPacketMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

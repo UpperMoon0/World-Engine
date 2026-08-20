@@ -1,0 +1,33 @@
+plugins {
+    id 'multiloader-loader'
+    id 'net.neoforged.moddev'
+}
+
+neoForge {
+    version = neoforge_version
+    parchment {
+        minecraftVersion = parchment_minecraft
+        mappingsVersion = parchment_version
+    }
+    runs {
+        configureEach {
+            systemProperty('neoforge.enabledGameTestNamespaces', mod_id.toString())
+            ideName = "World Engine NeoForge ${it.name.capitalize()}"
+        }
+        client { client(); gameDirectory = project.file('runs/client') }
+        server { server(); gameDirectory = project.file('runs/server') }
+        gameTest {
+            type = 'gameTestServer'
+            gameDirectory = project.file('build/gametest')
+            systemProperty('neoforge.enabledGameTestNamespaces', 'sable')
+        }
+    }
+    mods {
+        "${mod_id}" { sourceSet sourceSets.main }
+    }
+}
+
+dependencies {
+    implementation "dev.ryanhcode.sable:sable-neoforge-$minecraft_version:$sable_version"
+    jarJar(runtimeOnly(project(path: ':worldengine_rapier', configuration: 'runtimeElements')))
+}

@@ -1,0 +1,52 @@
+[package]
+name = "worldengine_rapier"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+marten.workspace = true
+
+fern.workspace = true
+jni.workspace = true
+colored.workspace = true
+log.workspace = true
+humantime.workspace = true
+
+rapier3d = { git = "https://github.com/ryanhcode/rapier", rev = "38e92f117590862481a53df6fc69a5d893e29186", features = [
+    "simd-nightly",
+    "parallel",
+] }
+#rapier3d = { version = "0.26.1", features = [ "simd-stable" ] }
+
+rayon = "1.10.0"
+dashmap = "7.0.0-rc2"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "worldengine_rapier"
+path = "src/lib.rs"
+
+[features]
+# Enables Rapier's fine-grained timers only for benchmark builds. Production
+# natives keep this disabled so profiling does not add hot-path overhead.
+benchmark-profiler = ["rapier3d/profiler"]
+
+[[bench]]
+name = "collision_benchmark"
+harness = false
+
+[[bench]]
+name = "registry_scaling"
+harness = false
+
+[[bench]]
+name = "world_scaling"
+harness = false
+
+[[bench]]
+name = "phase0_scaling"
+harness = false
+required-features = ["benchmark-profiler"]
+
+[dev-dependencies]
+criterion = "0.8.2"

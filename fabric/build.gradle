@@ -1,0 +1,41 @@
+import net.fabricmc.loom.task.RemapJarTask
+
+plugins {
+    id 'net.fabricmc.fabric-loom-remap'
+    id 'multiloader-loader'
+}
+
+evaluationDependsOn(':worldengine_rapier')
+
+tasks.register('remapWorldEngineRapierJar', RemapJarTask) {
+    def rapier = project(':worldengine_rapier')
+    def rapierJar = rapier.tasks.named('jar', Jar)
+    dependsOn(rapierJar)
+    inputFile = rapierJar.flatMap { it.archiveFile }
+    archiveFileName = rapierJar.flatMap { it.archiveFileName }
+}
+
+remapJar {
+    dependsOn('remapWorldEngineRapierJar')
+    nestedJars.from(remapWorldEngineRapierJar.archiveFile)
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:$minecraft_version"
+    mappings loom.layered {
+        officialMojangMappings()
+        parchment("org.parchmentmc.data:parchment-$parchment_minecraft:$parchment_version@zip")
+    }
+
+    modImplementation "net.fabricmc:fabric-loader:$fabric_loader_version"
+    modImplementation fabricApi.module('fabric-lifecycle-events-v1', fabric_version)
+    modImplementation "dev.ryanhcode.sable:sable-fabric-$minecraft_version:$sable_version"
+    runtimeOnly project(path: ':worldengine_rapier', configuration: 'runtimeElements')
+}
+
+loom {
+    runs {
+        client { client(); setConfigName('World Engine Fabric Client'); ideConfigGenerated(true); runDir('runs/client') }
+        server { server(); setConfigName('World Engine Fabric Server'); ideConfigGenerated(true); runDir('runs/server') }
+    }
+}

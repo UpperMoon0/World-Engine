@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${version}",
+  "name": "${mod_name}",
+  "description": "${description}",
+  "authors": ["${mod_author}"],
+  "license": "${license}",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.nstut.worldengine.fabric.WorldEngineFabric"]
+  },
+  "mixins": ["worldengine.mixins.json"],
+  "depends": {
+    "fabricloader": ">=${fabric_loader_version}",
+    "minecraft": "~${minecraft_version}",
+    "java": ">=${java_version}",
+    "sable": ">=${sable_version}"
+  }
+}

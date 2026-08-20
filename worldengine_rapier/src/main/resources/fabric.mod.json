@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "worldengine_rapier",
+  "version": "${version}",
+  "depends": {
+    "sable": ">=2.0.4"
+  },
+  "custom": {
+    "modmenu": {
+      "badges": [ "library" ]
+    }
+  }
+}

@@ -13,6 +13,8 @@ import net.minecraft.core.SectionPos;
 
 /** Incremental section index used because Sable 2.0.4 compiles its optional ticket-query index out. */
 public final class WorldEngineBodyIndex {
+    private static final long MAX_ENUMERATED_QUERY_SECTIONS = 4096L;
+
     private final Long2ObjectOpenHashMap<ReferenceOpenHashSet<ServerSubLevel>> sections =
             new Long2ObjectOpenHashMap<>();
     private final Reference2ObjectOpenHashMap<ServerSubLevel, LongOpenHashSet> bodySections =
@@ -40,9 +42,14 @@ public final class WorldEngineBodyIndex {
 
     public Iterable<SubLevel> query(BoundingBox3dc bounds) {
         ReferenceOpenHashSet<ServerSubLevel> candidates = new ReferenceOpenHashSet<>();
-        for (long section : this.sectionsFor(bounds)) {
-            ReferenceOpenHashSet<ServerSubLevel> residents = this.sections.get(section);
-            if (residents != null) candidates.addAll(residents);
+        BoundingBox3i chunks = bounds.chunkBoundsFrom();
+        if (canEnumerateQuerySections(chunks)) {
+            for (long section : this.sectionsFor(chunks)) {
+                ReferenceOpenHashSet<ServerSubLevel> residents = this.sections.get(section);
+                if (residents != null) candidates.addAll(residents);
+            }
+        } else {
+            candidates.addAll(this.bodySections.keySet());
         }
 
         ObjectArrayList<SubLevel> result = new ObjectArrayList<>(candidates.size());
@@ -53,7 +60,10 @@ public final class WorldEngineBodyIndex {
     }
 
     private LongOpenHashSet sectionsFor(BoundingBox3dc bounds) {
-        BoundingBox3i chunks = bounds.chunkBoundsFrom();
+        return this.sectionsFor(bounds.chunkBoundsFrom());
+    }
+
+    private LongOpenHashSet sectionsFor(BoundingBox3i chunks) {
         LongOpenHashSet result = new LongOpenHashSet();
         for (int x = chunks.minX(); x <= chunks.maxX(); x++) {
             for (int z = chunks.minZ(); z <= chunks.maxZ(); z++) {
@@ -63,6 +73,15 @@ public final class WorldEngineBodyIndex {
             }
         }
         return result;
+    }
+
+    private static boolean canEnumerateQuerySections(BoundingBox3i chunks) {
+        long xSections = (long) chunks.maxX() - chunks.minX() + 1L;
+        long ySections = (long) chunks.maxY() - chunks.minY() + 1L;
+        long zSections = (long) chunks.maxZ() - chunks.minZ() + 1L;
+        if (xSections <= 0L || ySections <= 0L || zSections <= 0L) return false;
+        if (xSections > MAX_ENUMERATED_QUERY_SECTIONS / ySections) return false;
+        return xSections * ySections <= MAX_ENUMERATED_QUERY_SECTIONS / zSections;
     }
 
     private void removeFromSection(long section, ServerSubLevel body) {

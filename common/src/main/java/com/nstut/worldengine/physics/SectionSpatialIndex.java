@@ -12,34 +12,43 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Reference-keyed spatial index over packed chunk-section coordinates.
+ * Reference-keyed spatial index over chunk-section coordinates packed by a
+ * caller-supplied {@link Packer}.
  *
  * Queries stream matching bodies directly out of the resident sets: no
  * temporary section sets, candidate sets, or per-query iterators are
  * allocated. Deduplication across overlapping sections uses reusable
- * generation stamps instead of a per-query hash set, so a hot query path
- * (for example every mob movement) performs zero intermediate allocations.
+ * generation stamps instead of a per-query hash set, so the hot query path
+ * performs zero intermediate collection allocations; only the result list
+ * allocates, lazily on the first match.
  *
- * Section packing must match {@code SectionPos.asLong(x, y, z)}:
- * x 26 bits << 38, z 26 bits << 12, y 12 bits.
+ * Production callers must inject {@code SectionPos::asLong} so keys are
+ * identical on insert and query.
  */
 public final class SectionSpatialIndex<T> {
     private static final int STAMP_HYGIENE_FACTOR = 4;
     private static final int STAMP_HYGIENE_SLACK = 64;
+
+    /**
+     * Packs section coordinates into a long key. Must be used consistently
+     * for insertion and querying; production uses {@code SectionPos.asLong}.
+     */
+    @FunctionalInterface
+    public interface Packer {
+        long pack(int x, int y, int z);
+    }
 
     private final Long2ObjectOpenHashMap<ReferenceOpenHashSet<T>> sections =
             new Long2ObjectOpenHashMap<>();
     private final Reference2ObjectOpenHashMap<T, LongOpenHashSet> bodySections =
             new Reference2ObjectOpenHashMap<>();
     private final Reference2LongOpenHashMap<T> resultStamps = new Reference2LongOpenHashMap<>();
+    private final Packer packer;
     private long stampGeneration = 0L;
 
-    public SectionSpatialIndex() {
+    public SectionSpatialIndex(Packer packer) {
+        this.packer = packer;
         this.resultStamps.defaultReturnValue(0L);
-    }
-
-    public static long packSection(int x, int y, int z) {
-        return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFF);
     }
 
     public boolean isEmpty() {
@@ -87,7 +96,7 @@ public final class SectionSpatialIndex<T> {
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
                 for (int y = minY; y <= maxY; y++) {
-                    ReferenceOpenHashSet<T> residents = this.sections.get(packSection(x, y, z));
+                    ReferenceOpenHashSet<T> residents = this.sections.get(this.packer.pack(x, y, z));
                     if (residents == null) continue;
                     for (T body : residents) {
                         if (this.resultStamps.getLong(body) == generation) continue;

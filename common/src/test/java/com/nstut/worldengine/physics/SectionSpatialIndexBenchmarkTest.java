@@ -22,8 +22,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Correctness parity and performance comparison for {@link SectionSpatialIndex}
  * against the previous allocation-heavy query implementation (inlined below as
  * {@code LegacyIndex}), which mirrors WorldEngineBodyIndex before the rewrite.
+ *
+ * Both sides receive the same injected packer, mirroring how production wires
+ * {@code SectionPos::asLong} into insert and query. The packer below replicates
+ * the real 1.21.1 SectionPos layout (x 22 bits << 42, z 22 bits << 20,
+ * y 20 bits << 0) so key behaviour matches production; parity would hold for
+ * any injectable layout because both paths share it.
  */
 class SectionSpatialIndexBenchmarkTest {
+
+    private static final SectionSpatialIndex.Packer PACKER =
+            (x, y, z) -> ((long) (x & 0x3FFFFF) << 42) | ((long) (z & 0x3FFFFF) << 20)
+                    | ((long) (y & 0xFFFFF));
 
     static final class FakeBody {
         final int minX, minY, minZ, maxX, maxY, maxZ;
@@ -49,34 +59,25 @@ class SectionSpatialIndexBenchmarkTest {
 
         void insert(FakeBody body) {
             this.allBodies.add(body);
-            for (int x = body.minX; x <= body.maxX; x++)
-                for (int z = body.minZ; z <= body.maxZ; z++)
-                    for (int y = body.minY; y <= body.maxY; y++)
-                        this.sections.computeIfAbsent(SectionSpatialIndex.packSection(x, y, z),
-                                k -> new ReferenceOpenHashSet<>()).add(body);
+            this.forEachSection(body, key ->
+                    this.sections.computeIfAbsent(key, k -> new ReferenceOpenHashSet<>()).add(body));
         }
 
         void remove(FakeBody body) {
             this.allBodies.remove(body);
-            for (int x = body.minX; x <= body.maxX; x++)
-                for (int z = body.minZ; z <= body.maxZ; z++)
-                    for (int y = body.minY; y <= body.maxY; y++) {
-                        long key = SectionSpatialIndex.packSection(x, y, z);
-                        var residents = this.sections.get(key);
-                        if (residents != null) {
-                            residents.remove(body);
-                            if (residents.isEmpty()) this.sections.remove(key);
-                        }
-                    }
+            this.forEachSection(body, key -> {
+                var set = this.sections.get(key);
+                if (set != null) {
+                    set.remove(body);
+                    if (set.isEmpty()) this.sections.remove(key);
+                }
+            });
         }
 
         List<FakeBody> query(FakeBody bounds) {
             ReferenceOpenHashSet<FakeBody> candidates = new ReferenceOpenHashSet<>();
             LongOpenHashSet queried = new LongOpenHashSet();
-            for (int x = bounds.minX; x <= bounds.maxX; x++)
-                for (int z = bounds.minZ; z <= bounds.maxZ; z++)
-                    for (int y = bounds.minY; y <= bounds.maxY; y++)
-                        queried.add(SectionSpatialIndex.packSection(x, y, z));
+            this.forEachSection(bounds, queried::add);
             for (long section : queried) {
                 var residents = this.sections.get(section);
                 if (residents != null) candidates.addAll(residents);
@@ -86,6 +87,13 @@ class SectionSpatialIndexBenchmarkTest {
                 if (!body.removed && body.intersects(bounds)) result.add(body);
             }
             return result;
+        }
+
+        private void forEachSection(FakeBody body, java.util.function.LongConsumer sink) {
+            for (int x = body.minX; x <= body.maxX; x++)
+                for (int z = body.minZ; z <= body.maxZ; z++)
+                    for (int y = body.minY; y <= body.maxY; y++)
+                        sink.accept(PACKER.pack(x, y, z));
         }
     }
 
@@ -98,13 +106,13 @@ class SectionSpatialIndexBenchmarkTest {
         for (int x = body.minX; x <= body.maxX; x++)
             for (int z = body.minZ; z <= body.maxZ; z++)
                 for (int y = body.minY; y <= body.maxY; y++)
-                    secs.add(SectionSpatialIndex.packSection(x, y, z));
+                    secs.add(PACKER.pack(x, y, z));
         spatial.insert(body, secs);
     }
 
     @Test
     void emptyIndexReturnsSharedEmptyList() {
-        SectionSpatialIndex<FakeBody> index = new SectionSpatialIndex<>();
+        SectionSpatialIndex<FakeBody> index = new SectionSpatialIndex<>(PACKER);
         assertTrue(index.isEmpty());
         assertSame(List.of(), index.querySections(-4, -4, -4, 4, 4, 4, b -> true));
         assertSame(List.of(), index.queryAll(b -> true));
@@ -112,7 +120,7 @@ class SectionSpatialIndexBenchmarkTest {
 
     @Test
     void singleSectionSingleBodyFastCase() {
-        SectionSpatialIndex<FakeBody> index = new SectionSpatialIndex<>();
+        SectionSpatialIndex<FakeBody> index = new SectionSpatialIndex<>(PACKER);
         FakeBody body = new FakeBody(3, -2, 5, 3, -2, 5);
         populate(index, body);
 
@@ -126,10 +134,35 @@ class SectionSpatialIndexBenchmarkTest {
                 miss.maxX, miss.maxY, miss.maxZ, liveFilter(miss)));
     }
 
+    /**
+     * Mirrors production: bodies are inserted through one path and queried
+     * through another, sharing only the injected packer.
+     */
+    @Test
+    void insertAndQueryShareProductionPackerIdentity() {
+        SectionSpatialIndex<FakeBody> index = new SectionSpatialIndex<>(PACKER);
+        LegacyIndex legacy = new LegacyIndex();
+        Random random = new Random(99);
+
+        for (int i = 0; i < 50; i++) {
+            int x = random.nextInt(400_000) - 200_000;
+            int y = random.nextInt(1_000_000) >> 10;
+            int z = random.nextInt(400_000) - 200_000;
+            FakeBody body = new FakeBody(x, y, z, x, y + 1, z);
+            populate(index, body);
+            legacy.insert(body);
+
+            List<FakeBody> actual = index.querySections(x - 2, y - 2, z - 2,
+                    x + 2, y + 2, z + 2, liveFilter(body));
+            assertEquals(1, actual.size());
+            assertEquals(legacy.query(body).size(), actual.size());
+        }
+    }
+
     @RepeatedTest(8)
     void parityWithLegacyImplementation() {
         Random random = new Random(42);
-        SectionSpatialIndex<FakeBody> spatial = new SectionSpatialIndex<>();
+        SectionSpatialIndex<FakeBody> spatial = new SectionSpatialIndex<>(PACKER);
         LegacyIndex legacy = new LegacyIndex();
         Set<FakeBody> tracked = new HashSet<>();
 
@@ -169,7 +202,7 @@ class SectionSpatialIndexBenchmarkTest {
 
     @Test
     void worldScaleFallbackMatchesFullScan() {
-        SectionSpatialIndex<FakeBody> index = new SectionSpatialIndex<>();
+        SectionSpatialIndex<FakeBody> index = new SectionSpatialIndex<>(PACKER);
         FakeBody body = new FakeBody(-40, -64, -40, 40, 320, 40);
         populate(index, body);
         FakeBody other = new FakeBody(500_000, 0, 500_000, 500_001, 0, 500_001);
@@ -189,7 +222,7 @@ class SectionSpatialIndexBenchmarkTest {
 
     @Test
     void stampHygieneClearsAfterRemovals() {
-        SectionSpatialIndex<FakeBody> index = new SectionSpatialIndex<>();
+        SectionSpatialIndex<FakeBody> index = new SectionSpatialIndex<>(PACKER);
         List<FakeBody> bodies = new ArrayList<>();
         for (int i = 0; i < 128; i++) {
             FakeBody body = new FakeBody(i * 2, 0, i * 2, i * 2 + 1, 0, i * 2 + 1);
@@ -205,47 +238,54 @@ class SectionSpatialIndexBenchmarkTest {
         assertEquals(bodies.size(), index.size());
     }
 
+    /**
+     * Models the production shape: a handful of multi-section sublevels is
+     * indexed, then thousands of mob-sized queries hit the index each tick.
+     */
     @Test
-    void benchmarkManyStationaryMobQueries() {
+    void benchmarkSublevelIndexManyMobQueries() {
         Random random = new Random(7);
-        SectionSpatialIndex<FakeBody> spatial = new SectionSpatialIndex<>();
+        SectionSpatialIndex<FakeBody> spatial = new SectionSpatialIndex<>(PACKER);
         LegacyIndex legacy = new LegacyIndex();
 
-        final int mobCount = 2_000;
+        final int subLevelCount = 24;
+        for (int i = 0; i < subLevelCount; i++) {
+            int x = random.nextInt(160) - 80, y = random.nextInt(8), z = random.nextInt(160) - 80;
+            int span = 1 + random.nextInt(2);
+            FakeBody subLevel = new FakeBody(x, y, z, x + span, y + span, z + span);
+            populate(spatial, subLevel);
+            legacy.insert(subLevel);
+        }
+
+        final int mobCount = 4_000;
+        final int ticks = 5;
+        FakeBody[] mobs = new FakeBody[mobCount];
         for (int i = 0; i < mobCount; i++) {
-            int x = random.nextInt(160) - 80, z = random.nextInt(160) - 80;
-            FakeBody mob = new FakeBody(x, 0, z, x, 1, z);
-            populate(spatial, mob);
-            legacy.insert(mob);
-        }
-
-        final int queryCount = 20_000;
-        FakeBody[] queries = new FakeBody[queryCount];
-        for (int i = 0; i < queryCount; i++) {
             int x = random.nextInt(180) - 90, z = random.nextInt(180) - 90;
-            queries[i] = new FakeBody(x, -1, z, x + 1, 2, z + 1);
+            mobs[i] = new FakeBody(x, 0, z, x + 1, 1, z + 1);
         }
 
-        for (int warmup = 0; warmup < 3; warmup++) runAll(spatial, queries);
-        runAll(legacy, queries);
-        runAll(legacy, queries);
+        for (int warmup = 0; warmup < 3; warmup++) runAll(spatial, mobs, ticks);
+        runAll(legacy, mobs, ticks);
+        runAll(legacy, mobs, ticks);
 
         long legacyStart = System.nanoTime();
-        runAll(legacy, queries);
+        runAll(legacy, mobs, ticks);
         long legacyNanos = System.nanoTime() - legacyStart;
 
         long newStart = System.nanoTime();
-        runAll(spatial, queries);
+        runAll(spatial, mobs, ticks);
         long newNanos = System.nanoTime() - newStart;
 
+        long totalQueries = (long) mobCount * ticks;
         double legacyMs = legacyNanos / 1_000_000.0;
         double newMs = newNanos / 1_000_000.0;
-        System.out.printf("=== WorldEngine body-index benchmark (%d mobs x %d queries) ===%n",
-                mobCount, queryCount);
-        System.out.printf("legacy (allocating): %.2f ms  (%.1f us/query)%n", legacyMs,
-                legacyNanos / 1000.0 / queryCount);
-        System.out.printf("streamed (stamped):  %.2f ms  (%.1f us/query)%n", newMs,
-                newNanos / 1000.0 / queryCount);
+        System.out.printf("=== WorldEngine body-index benchmark (%d sublevels, %d mobs x %d ticks) ===%n",
+                subLevelCount, mobCount, ticks);
+        System.out.printf("legacy (allocating): %.2f ms  (%.2f us/query)%n", legacyMs,
+                legacyNanos / 1000.0 / totalQueries);
+        System.out.printf("streamed (stamped):  %.2f ms  (%.2f us/query)%n", newMs,
+                newNanos / 1000.0 / totalQueries);
         System.out.printf("speedup: %.2fx%n", legacyNanos / (double) Math.max(1, newNanos));
 
         assertTrue(newNanos <= legacyNanos * 3 / 2 + 2_000_000L,
@@ -254,19 +294,23 @@ class SectionSpatialIndexBenchmarkTest {
 
     private static long sink;
 
-    private static void runAll(SectionSpatialIndex<FakeBody> index, FakeBody[] queries) {
+    private static void runAll(SectionSpatialIndex<FakeBody> index, FakeBody[] mobs, int ticks) {
         long acc = 0;
-        for (FakeBody query : queries) {
-            acc += index.querySections(query.minX, query.minY, query.minZ,
-                    query.maxX, query.maxY, query.maxZ, liveFilter(query)).size();
+        for (int t = 0; t < ticks; t++) {
+            for (FakeBody mob : mobs) {
+                acc += index.querySections(mob.minX, mob.minY, mob.minZ,
+                        mob.maxX, mob.maxY, mob.maxZ, liveFilter(mob)).size();
+            }
         }
         sink += acc;
     }
 
-    private static void runAll(LegacyIndex index, FakeBody[] queries) {
+    private static void runAll(LegacyIndex index, FakeBody[] mobs, int ticks) {
         long acc = 0;
-        for (FakeBody query : queries) {
-            acc += index.query(query).size();
+        for (int t = 0; t < ticks; t++) {
+            for (FakeBody mob : mobs) {
+                acc += index.query(mob).size();
+            }
         }
         sink += acc;
     }

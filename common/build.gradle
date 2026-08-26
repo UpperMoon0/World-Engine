@@ -57,7 +57,7 @@ dependencies {
     testImplementation platform("org.junit:junit-bom:5.11.4")
     testImplementation "org.junit.jupiter:junit-jupiter"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
-    testImplementation "it.unimi.dsi.fastutil:fastutil:8.5.15"
+    testImplementation "it.unimi.dsi:fastutil:8.5.12"
 }
 
 tasks.withType(Test).configureEach {

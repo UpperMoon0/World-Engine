@@ -6,6 +6,12 @@
   "description": "${description}",
   "authors": ["${mod_author}"],
   "license": "${license}",
+  "icon": "assets/worldengine/icon.png",
+  "contact": {
+    "homepage": "${homepage}",
+    "issues": "${issues}",
+    "sources": "${homepage}"
+  },
   "environment": "*",
   "entrypoints": {
     "main": ["com.nstut.worldengine.fabric.WorldEngineFabric"]

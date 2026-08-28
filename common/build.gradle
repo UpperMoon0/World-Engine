@@ -45,6 +45,14 @@ artifacts {
     commonResources sourceSets.main.resources.sourceDirectories.singleFile
 }
 
+sourceSets {
+    jmh {
+        java.srcDir "src/jmh/java"
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
 dependencies {
     compileOnly "net.fabricmc:sponge-mixin:0.15.2+mixin.0.8.7"
 
@@ -53,4 +61,25 @@ dependencies {
     annotationProcessor "io.github.llamalad7:mixinextras-common:0.5.3"
 
     compileOnly "dev.ryanhcode.sable:sable-common-$minecraft_version:$sable_version"
+
+    testImplementation platform("org.junit:junit-bom:5.11.4")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    testImplementation "it.unimi.dsi:fastutil:8.5.12"
+    testImplementation "com.mojang:datafixerupper:8.0.16"
+    testImplementation "org.joml:joml:1.10.8"
+    testImplementation "dev.ryanhcode.sable:sable-common-$minecraft_version:$sable_version"
+    jmhImplementation "org.openjdk.jmh:jmh-core:1.37"
+    jmhAnnotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:1.37"
+}
+
+tasks.register("jmh", JavaExec) {
+    group = "verification"
+    description = "Runs opt-in body-index JMH benchmarks (not part of check/build)."
+    classpath = sourceSets.jmh.runtimeClasspath
+    mainClass = "org.openjdk.jmh.Main"
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
 }

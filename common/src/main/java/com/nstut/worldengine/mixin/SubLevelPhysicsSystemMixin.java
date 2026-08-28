@@ -123,7 +123,6 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
 
     @Unique
     private void worldengine$tickPipelinePhysics(ServerSubLevelContainer container) {
-        this.config.substepsPerTick = 1;
         this.pipeline.prePhysicsTicks();
 
         for (this.currentSubstep = 0; this.currentSubstep < this.config.substepsPerTick; this.currentSubstep++) {

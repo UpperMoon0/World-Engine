@@ -45,6 +45,14 @@ artifacts {
     commonResources sourceSets.main.resources.sourceDirectories.singleFile
 }
 
+sourceSets {
+    jmh {
+        java.srcDir "src/jmh/java"
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
 dependencies {
     compileOnly "net.fabricmc:sponge-mixin:0.15.2+mixin.0.8.7"
 
@@ -58,6 +66,15 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
     testImplementation "it.unimi.dsi:fastutil:8.5.12"
+    jmhImplementation "org.openjdk.jmh:jmh-core:1.37"
+    jmhAnnotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:1.37"
+}
+
+tasks.register("jmh", JavaExec) {
+    group = "verification"
+    description = "Runs opt-in body-index JMH benchmarks (not part of check/build)."
+    classpath = sourceSets.jmh.runtimeClasspath
+    mainClass = "org.openjdk.jmh.Main"
 }
 
 tasks.withType(Test).configureEach {

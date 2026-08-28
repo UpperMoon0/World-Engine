@@ -42,6 +42,7 @@ public final class SectionSpatialIndex<T> {
             new Long2ObjectOpenHashMap<>();
     private final Reference2ObjectOpenHashMap<T, LongOpenHashSet> bodySections =
             new Reference2ObjectOpenHashMap<>();
+    private final ReferenceOpenHashSet<T> largeBodies = new ReferenceOpenHashSet<>();
     private final Reference2LongOpenHashMap<T> resultStamps = new Reference2LongOpenHashMap<>();
     private final Packer packer;
     private long stampGeneration = 0L;
@@ -52,10 +53,14 @@ public final class SectionSpatialIndex<T> {
     }
 
     public boolean isEmpty() {
-        return this.bodySections.isEmpty();
+        return this.bodySections.isEmpty() && this.largeBodies.isEmpty();
     }
 
     public int size() {
+        return this.bodySections.size() + this.largeBodies.size();
+    }
+
+    public int indexedSize() {
         return this.bodySections.size();
     }
 
@@ -63,11 +68,16 @@ public final class SectionSpatialIndex<T> {
         return this.bodySections.get(body);
     }
 
+    public boolean isLarge(T body) {
+        return this.largeBodies.contains(body);
+    }
+
     /**
      * Indexes {@code body} over {@code sectionsOccupied}, taking ownership of the set.
      * The caller must not reuse the instance afterwards.
      */
     public void insert(T body, LongOpenHashSet sectionsOccupied) {
+        this.largeBodies.remove(body);
         LongOpenHashSet previous = this.bodySections.put(body, sectionsOccupied);
         if (previous != null) {
             for (long section : previous) this.removeFromSection(section, body);
@@ -77,7 +87,21 @@ public final class SectionSpatialIndex<T> {
         }
     }
 
+    /**
+     * Tracks a body outside the section map. Large bodies are tested exactly on
+     * every query, avoiding unbounded section memberships for world-scale AABBs.
+     */
+    public void insertLarge(T body) {
+        LongOpenHashSet previous = this.bodySections.remove(body);
+        if (previous != null) {
+            for (long section : previous) this.removeFromSection(section, body);
+        }
+        this.resultStamps.remove(body);
+        this.largeBodies.add(body);
+    }
+
     public void remove(T body) {
+        this.largeBodies.remove(body);
         LongOpenHashSet previous = this.bodySections.remove(body);
         this.resultStamps.remove(body);
         if (previous == null) return;
@@ -92,7 +116,7 @@ public final class SectionSpatialIndex<T> {
     public List<T> querySections(int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
             Predicate<T> filter) {
         List<T> result = null;
-        final long generation = ++this.stampGeneration;
+        final long generation = this.nextGeneration();
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
                 for (int y = minY; y <= maxY; y++) {
@@ -107,6 +131,12 @@ public final class SectionSpatialIndex<T> {
                         }
                     }
                 }
+            }
+        }
+        for (T body : this.largeBodies) {
+            if (filter.test(body)) {
+                if (result == null) result = new ArrayList<>(this.largeBodies.size());
+                result.add(body);
             }
         }
         this.hygiene();
@@ -125,13 +155,26 @@ public final class SectionSpatialIndex<T> {
                 result.add(body);
             }
         }
+        for (T body : this.largeBodies) {
+            if (filter.test(body)) {
+                if (result == null) result = new ArrayList<>(this.size());
+                result.add(body);
+            }
+        }
         return result == null ? List.of() : result;
     }
 
-    private void hygiene() {
-        if (this.stampGeneration == Long.MAX_VALUE || this.resultStamps.size()
-                > STAMP_HYGIENE_FACTOR * this.bodySections.size() + STAMP_HYGIENE_SLACK) {
+    private long nextGeneration() {
+        if (this.stampGeneration == Long.MAX_VALUE) {
             this.stampGeneration = 0L;
+            this.resultStamps.clear();
+        }
+        return ++this.stampGeneration;
+    }
+
+    private void hygiene() {
+        if (this.resultStamps.size() > (long) STAMP_HYGIENE_FACTOR * this.size()
+                + STAMP_HYGIENE_SLACK) {
             this.resultStamps.clear();
         }
     }

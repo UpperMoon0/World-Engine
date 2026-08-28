@@ -10,7 +10,7 @@ import net.minecraft.core.SectionPos;
 import java.util.List;
 
 /**
- * Incremental section index used because Sable 2.0.4 compiles its optional ticket-query index out.
+ * Incremental section index used because Sable 2.0.5 compiles its optional ticket-query index out.
  *
  * Queries avoid intermediate allocations for the common cases: an empty index returns
  * a shared immutable list, section enumeration streams matches through generation stamps
@@ -19,7 +19,7 @@ import java.util.List;
  * Insertion and query keys both come from {@link SectionPos#asLong}, so they cannot drift.
  */
 public final class WorldEngineBodyIndex {
-    private static final long MAX_ENUMERATED_QUERY_SECTIONS = 4096L;
+    private static final long MAX_INDEXED_BODY_SECTIONS = 4096L;
 
     private final SectionSpatialIndex<ServerSubLevel> index =
             new SectionSpatialIndex<>(SectionPos::asLong);
@@ -28,9 +28,15 @@ public final class WorldEngineBodyIndex {
     private LongOpenHashSet sectionsScratch = new LongOpenHashSet();
 
     public void update(ServerSubLevel body) {
+        BoundingBox3i chunks = body.boundingBox().chunkBoundsFrom(this.scratchChunks);
+        if (sectionVolume(chunks) > MAX_INDEXED_BODY_SECTIONS) {
+            if (!this.index.isLarge(body)) this.index.insertLarge(body);
+            return;
+        }
+
         LongOpenHashSet previous = this.index.sectionsOf(body);
         this.sectionsScratch.clear();
-        collectSections(body.boundingBox().chunkBoundsFrom(this.scratchChunks), this.sectionsScratch);
+        collectSections(chunks, this.sectionsScratch);
         if (previous != null && previous.equals(this.sectionsScratch)) return;
 
         LongOpenHashSet fresh = this.sectionsScratch;
@@ -48,7 +54,7 @@ public final class WorldEngineBodyIndex {
         BoundingBox3i chunks = bounds.chunkBoundsFrom(this.scratchChunks);
         BodyFilter live = this.filter.forBounds(bounds);
         List<ServerSubLevel> matches;
-        if (canEnumerateQuerySections(chunks)) {
+        if (shouldEnumerateQuerySections(chunks, this.index.indexedSize())) {
             matches = this.index.querySections(chunks.minX(), chunks.minY(), chunks.minZ(),
                     chunks.maxX(), chunks.maxY(), chunks.maxZ(), live);
         } else {
@@ -88,12 +94,12 @@ public final class WorldEngineBodyIndex {
         }
     }
 
-    private static boolean canEnumerateQuerySections(BoundingBox3i chunks) {
-        long xSections = (long) chunks.maxX() - chunks.minX() + 1L;
-        long ySections = (long) chunks.maxY() - chunks.minY() + 1L;
-        long zSections = (long) chunks.maxZ() - chunks.minZ() + 1L;
-        if (xSections <= 0L || ySections <= 0L || zSections <= 0L) return false;
-        if (xSections > MAX_ENUMERATED_QUERY_SECTIONS / ySections) return false;
-        return xSections * ySections <= MAX_ENUMERATED_QUERY_SECTIONS / zSections;
+    static boolean shouldEnumerateQuerySections(BoundingBox3i chunks, int bodyCount) {
+        return BodyIndexPolicy.shouldEnumerateQuerySections(sectionVolume(chunks), bodyCount);
+    }
+
+    static long sectionVolume(BoundingBox3i chunks) {
+        return BodyIndexPolicy.sectionVolume(chunks.minX(), chunks.minY(), chunks.minZ(),
+                chunks.maxX(), chunks.maxY(), chunks.maxZ());
     }
 }

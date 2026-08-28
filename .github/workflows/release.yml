@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -55,7 +57,7 @@ jobs:
           if-no-files-found: error
 
   github-release:
-    if: github.ref_type == 'tag'
+    if: github.ref == 'refs/heads/main' || github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -73,12 +75,17 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
           name: World Engine ${{ steps.version.outputs.version }}
           body_path: changelog/${{ steps.version.outputs.version }}.md
           files: release-artifacts/*.jar
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   curseforge:
-    if: github.ref_type == 'tag'
+    if: github.ref == 'refs/heads/main' || github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     strategy:
@@ -103,18 +110,83 @@ jobs:
         shell: bash
         env:
           CURSEFORGE_API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
-          CURSEFORGE_PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          CURSEFORGE_PROJECT_ID: '1671915'
           MOD_VERSION: ${{ steps.version.outputs.version }}
           LOADER: ${{ matrix.loader }}
           FILE_PREFIX: ${{ matrix.file }}
+          MINECRAFT_VERSION: '1.21.1'
+          JAVA_VERSION_NAME: 'Java 21'
         run: |
           set -euo pipefail
-          test -n "${CURSEFORGE_API_TOKEN:-}" || { echo "Missing CURSEFORGE_API_TOKEN secret" >&2; exit 1; }
-          test -n "${CURSEFORGE_PROJECT_ID:-}" || { echo "Missing CURSEFORGE_PROJECT_ID variable" >&2; exit 1; }
+          if [[ -z "${CURSEFORGE_API_TOKEN:-}" ]]; then
+            echo "Missing required GitHub secret: CURSEFORGE_API_TOKEN" >&2
+            exit 1
+          fi
+
           jar_path="release-artifacts/${FILE_PREFIX}-${MOD_VERSION}.jar"
-          test -f "$jar_path"
-          changelog="$(<"changelog/${MOD_VERSION}.md")"
-          game_versions="$(jq -cn --arg loader "$LOADER" '["1.21.1", $loader, "Java 21", "Client", "Server"]')"
+          if [[ ! -f "$jar_path" ]]; then
+            echo "Release jar not found at $jar_path" >&2
+            exit 1
+          fi
+
+          changelog_path="changelog/${MOD_VERSION}.md"
+          if [[ ! -f "$changelog_path" ]]; then
+            echo "Release changelog not found at $changelog_path" >&2
+            exit 1
+          fi
+
+          game_version_names="$(jq -cn \
+            --arg minecraftVersion "$MINECRAFT_VERSION" \
+            --arg loaderName "$LOADER" \
+            --arg javaVersionName "$JAVA_VERSION_NAME" \
+            '[$minecraftVersion, $loaderName, $javaVersionName, "Client", "Server"]')"
+
+          available_versions="$(curl --fail-with-body --silent --show-error \
+            --header "X-Api-Token: ${CURSEFORGE_API_TOKEN}" \
+            'https://minecraft.curseforge.com/api/game/versions')"
+          while IFS= read -r version_name; do
+            if ! jq -e --arg name "$version_name" 'any(.[]; .name == $name)' \
+              <<< "$available_versions" >/dev/null; then
+              echo "CurseForge does not recognize game version tag: ${version_name}" >&2
+              exit 1
+            fi
+          done < <(jq -r '.[]' <<< "$game_version_names")
+
+          changelog="$(<"$changelog_path")"
           relations='{"projects":[{"slug":"sable","type":"requiredDependency"}]}'
-          metadata="$(jq -cn --arg changelog "$changelog" --arg displayName "World Engine ${MOD_VERSION} - ${LOADER} 1.21.1" --argjson gameVersionNames "$game_versions" --argjson relations "$relations" '{changelog:$changelog,changelogType:"markdown",displayName:$displayName,gameVersionNames:$gameVersionNames,releaseType:"release",relations:$relations}')"
-          curl --fail-with-body --silent --show-error --request POST --header "X-Api-Token: ${CURSEFORGE_API_TOKEN}" --form-string "metadata=${metadata}" --form "file=@${jar_path}" "https://minecraft.curseforge.com/api/projects/${CURSEFORGE_PROJECT_ID}/upload-file"
+          display_name="World Engine ${MOD_VERSION} - ${LOADER} ${MINECRAFT_VERSION}"
+
+          metadata="$(jq -cn \
+            --arg changelog "$changelog" \
+            --arg displayName "$display_name" \
+            --argjson gameVersionNames "$game_version_names" \
+            --argjson relations "$relations" \
+            '{
+              changelog: $changelog,
+              changelogType: "markdown",
+              displayName: $displayName,
+              gameVersionNames: $gameVersionNames,
+              releaseType: "release",
+              relations: $relations
+            }')"
+
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          http_status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "X-Api-Token: ${CURSEFORGE_API_TOKEN}" \
+            --form-string "metadata=${metadata}" \
+            --form "file=@${jar_path}" \
+            "https://minecraft.curseforge.com/api/projects/${CURSEFORGE_PROJECT_ID}/upload-file")"
+          response="$(<"$response_file")"
+          if [[ "$http_status" =~ ^2 ]]; then
+            file_id="$(jq -er '.id' <<< "$response")"
+            echo "Published ${jar_path} to CurseForge as file ID ${file_id}."
+          elif grep -Eqi 'already|duplicate' <<< "$response"; then
+            echo "CurseForge already has ${jar_path}; treating this retry as successful."
+          else
+            echo "CurseForge upload failed with HTTP ${http_status}: ${response}" >&2
+            exit 1
+          fi

@@ -1,33 +1,47 @@
 # World Engine
 
-World Engine is a standalone optimization addon for [Sable](https://github.com/ryanhcode/sable) on Minecraft 1.21.1. Sable remains a required dependency and provides sublevels, compatibility, rendering, and its public API. World Engine contributes a higher-priority physics provider, world-scale native scheduling, and narrowly scoped mixins for the Sable hot paths described in [plan.md](plan.md).
+World Engine is a performance addon for [Sable](https://www.curseforge.com/minecraft/mc-mods/sable) on Minecraft 1.21.1. It is designed for worlds with many physics bodies and for large moving structures such as ships, stations, and terrain-scale contraptions.
 
-World Engine is not a Sable fork. Its Java classes use the `com.nstut.worldengine` namespace, its native library and cache are independently named, and its loader metadata declares Sable as a required dependency.
+It preserves Sable's configured physics substeps and collision behavior. Performance comes from doing less unnecessary work—not from lowering simulation quality.
 
-## Implemented optimizations
+## What it improves
 
-- Changed-body JNI input/output batching and active-pose synchronization
-- Persistent native body registry with dormant, ballistic, active, and critical tiers
-- Sparse swept-AABB world index and local-origin Rapier regions
-- Incremental region merge/split maintenance and bounded parallel stepping
-- Persistent section-based voxel geometry and incremental block edits
-- Region-local terrain streaming with per-body footprint/refcount tracking
-- Selective CCD, one normal physics step, collision aggregation, and work budgets
-- Active-body Java scheduling, incremental section-index queries, and empty-container fast paths
-- Distance-based network LOD with velocity-based client extrapolation
-- Per-tick time, weather, and natural-spawn memoization
+- Adaptive spatial queries choose between section lookup and exact body scanning based on the real query cost.
+- Very large bodies use an exact-AABB large-body tier instead of creating hundreds of thousands of section memberships.
+- Changed-body JNI batching and active-pose synchronization reduce Java/native overhead.
+- Persistent native registries, sparse world indexing, local Rapier regions, and bounded parallel stepping scale with active work.
+- Incremental voxel geometry and terrain streaming avoid rebuilding unchanged collision data.
+- Network level-of-detail and client extrapolation reduce unnecessary synchronization work.
+- Sable's configured physics substeps remain in effect.
 
-The exact migration coverage is recorded in [MIGRATION.md](MIGRATION.md).
+The full technical migration is documented in [MIGRATION.md](MIGRATION.md).
+
+## Requirements
+
+- Minecraft 1.21.1
+- Fabric or NeoForge
+- Java 21
+- [Sable 2.0.5 or newer](https://www.curseforge.com/minecraft/mc-mods/sable)
+
+Install the World Engine jar for your loader alongside Sable. Do not install both loader variants.
+
+## Compatibility
+
+World Engine is a standalone addon, not a Sable fork. Sable continues to provide sublevels, compatibility integrations, rendering, configuration, and its public API. World Engine supplies a higher-priority physics provider and narrowly scoped optimizations for Sable hot paths.
+
+Exact collision and AABB filtering are retained for large structures. The adaptive index changes query strategy only; it does not approximate body bounds or skip simulation.
 
 ## Building
 
-Use Java 21, then run:
+Use Java 21:
 
 ```powershell
 .\gradlew.bat build
 ```
 
-The regular Windows build recompiles and packages the local optimized native. Cross-platform release natives require Docker:
+Output jars are written to `fabric/build/libs` and `neoforge/build/libs`.
+
+The normal build packages the checked-in native binaries. Rebuilding every release-native target requires Docker:
 
 ```powershell
 .\gradlew.bat worldengine_rapier:buildImages
@@ -35,4 +49,12 @@ The regular Windows build recompiles and packages the local optimized native. Cr
 .\gradlew.bat build
 ```
 
-Output jars are produced under `fabric/build/libs` and `neoforge/build/libs`. Install the matching Sable 2.0.4-or-newer jar alongside World Engine.
+Correctness tests run as part of `build`. Query crossover benchmarks are opt-in through `:common:jmh`.
+
+## Releases and support
+
+- [Version changelogs](changelog/)
+- [GitHub releases](https://github.com/UpperMoon0/World-Engine/releases)
+- [Issue tracker](https://github.com/UpperMoon0/World-Engine/issues)
+
+World Engine is independently maintained by NsTut. Sable is developed by RyanHCode and its contributors.

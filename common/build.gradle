@@ -66,6 +66,9 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
     testImplementation "it.unimi.dsi:fastutil:8.5.12"
+    testImplementation "com.mojang:datafixerupper:8.0.16"
+    testImplementation "org.joml:joml:1.10.8"
+    testImplementation "dev.ryanhcode.sable:sable-common-$minecraft_version:$sable_version"
     jmhImplementation "org.openjdk.jmh:jmh-core:1.37"
     jmhAnnotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:1.37"
 }

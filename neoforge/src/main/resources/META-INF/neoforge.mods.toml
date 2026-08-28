@@ -10,6 +10,8 @@ displayName="${mod_name}"
 authors="${mod_author}"
 credits="${credits}"
 description='''${description}'''
+displayURL="${homepage}"
+logoFile="assets/worldengine/icon.png"
 
 [[mixins]]
 config="worldengine.mixins.json"

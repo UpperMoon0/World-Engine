@@ -5,8 +5,6 @@ import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import net.minecraft.core.SectionPos;
-
 import java.util.List;
 
 /**
@@ -16,13 +14,17 @@ import java.util.List;
  * a shared immutable list, section enumeration streams matches through generation stamps
  * (see {@link SectionSpatialIndex}) using one reusable predicate instance, and the query
  * chunk bounds reuse a scratch box. Only the match list allocates, lazily on first match.
- * Insertion and query keys both come from {@link SectionPos#asLong}, so they cannot drift.
+ * Insertion and query keys both match standard SectionPos bit packing, so they cannot drift.
  */
 public final class WorldEngineBodyIndex {
     private static final long MAX_INDEXED_BODY_SECTIONS = 4096L;
 
+    public static long packSection(int x, int y, int z) {
+        return (((long) (x & 0x3FFFFF)) << 42) | (((long) (z & 0x3FFFFF)) << 20) | ((long) y & 0xFFFFF);
+    }
+
     private final SectionSpatialIndex<ServerSubLevel> index =
-            new SectionSpatialIndex<>(SectionPos::asLong);
+            new SectionSpatialIndex<>(WorldEngineBodyIndex::packSection);
     private final BoundingBox3i scratchChunks = new BoundingBox3i();
     private final BodyFilter filter = new BodyFilter();
     private LongOpenHashSet sectionsScratch = new LongOpenHashSet();
@@ -88,7 +90,7 @@ public final class WorldEngineBodyIndex {
         for (int x = chunks.minX(); x <= chunks.maxX(); x++) {
             for (int z = chunks.minZ(); z <= chunks.maxZ(); z++) {
                 for (int y = chunks.minY(); y <= chunks.maxY(); y++) {
-                    dest.add(SectionPos.asLong(x, y, z));
+                    dest.add(packSection(x, y, z));
                 }
             }
         }

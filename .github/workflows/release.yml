@@ -1,34 +1,120 @@
 name: Release
-on: [workflow_dispatch] # Manual trigger
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/openjdk/jdk:21-ubuntu
-      options: --user root
     steps:
-      - name: Checkout sources
+      - name: Checkout
         uses: actions/checkout@v6
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: 21
           cache: gradle
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-      - name: Make Gradle Wrapper Executable
-        run: chmod +x ./gradlew
-      - name: Execute Gradle build
-        run: ./gradlew build
-      - name: Upload addon jars
+        uses: gradle/actions/setup-gradle@v6
+      - name: Validate release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^version=//p' gradle.properties | head -n 1 | tr -d '\r' | xargs)"
+          test -n "$version"
+          test -f "changelog/$version.md"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "v$version" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match version v$version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build and test
+        run: ./gradlew build neoforge:runGameTest --no-daemon
+      - name: Stage release jars
+        shell: bash
+        env:
+          MOD_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts
+          cp "fabric/build/libs/world-engine-fabric-${MOD_VERSION}.jar" release-artifacts/
+          cp "neoforge/build/libs/world-engine-neoforge-${MOD_VERSION}.jar" release-artifacts/
+      - name: Upload release jars
         uses: actions/upload-artifact@v4
         with:
-          name: world-engine-${{ github.sha }}
-          path: |
-            fabric/build/libs/*.jar
-            neoforge/build/libs/*.jar
+          name: world-engine-${{ steps.version.outputs.version }}
+          path: release-artifacts/*.jar
+          if-no-files-found: error
+
+  github-release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "version=$(sed -n 's/^version=//p' gradle.properties | head -n 1 | tr -d '\r' | xargs)" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: world-engine-${{ steps.version.outputs.version }}
+          path: release-artifacts
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: World Engine ${{ steps.version.outputs.version }}
+          body_path: changelog/${{ steps.version.outputs.version }}.md
+          files: release-artifacts/*.jar
+
+  curseforge:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - loader: Fabric
+            file: world-engine-fabric
+          - loader: NeoForge
+            file: world-engine-neoforge
+    steps:
+      - uses: actions/checkout@v6
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "version=$(sed -n 's/^version=//p' gradle.properties | head -n 1 | tr -d '\r' | xargs)" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: world-engine-${{ steps.version.outputs.version }}
+          path: release-artifacts
+      - name: Publish to CurseForge
+        shell: bash
+        env:
+          CURSEFORGE_API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          CURSEFORGE_PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          MOD_VERSION: ${{ steps.version.outputs.version }}
+          LOADER: ${{ matrix.loader }}
+          FILE_PREFIX: ${{ matrix.file }}
+        run: |
+          set -euo pipefail
+          test -n "${CURSEFORGE_API_TOKEN:-}" || { echo "Missing CURSEFORGE_API_TOKEN secret" >&2; exit 1; }
+          test -n "${CURSEFORGE_PROJECT_ID:-}" || { echo "Missing CURSEFORGE_PROJECT_ID variable" >&2; exit 1; }
+          jar_path="release-artifacts/${FILE_PREFIX}-${MOD_VERSION}.jar"
+          test -f "$jar_path"
+          changelog="$(<"changelog/${MOD_VERSION}.md")"
+          game_versions="$(jq -cn --arg loader "$LOADER" '["1.21.1", $loader, "Java 21", "Client", "Server"]')"
+          relations='{"projects":[{"slug":"sable","type":"requiredDependency"}]}'
+          metadata="$(jq -cn --arg changelog "$changelog" --arg displayName "World Engine ${MOD_VERSION} - ${LOADER} 1.21.1" --argjson gameVersionNames "$game_versions" --argjson relations "$relations" '{changelog:$changelog,changelogType:"markdown",displayName:$displayName,gameVersionNames:$gameVersionNames,releaseType:"release",relations:$relations}')"
+          curl --fail-with-body --silent --show-error --request POST --header "X-Api-Token: ${CURSEFORGE_API_TOKEN}" --form-string "metadata=${metadata}" --form "file=@${jar_path}" "https://minecraft.curseforge.com/api/projects/${CURSEFORGE_PROJECT_ID}/upload-file"

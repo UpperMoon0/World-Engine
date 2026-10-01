@@ -25,6 +25,8 @@ def quantiles(values):
 
 
 def validate(sample, engine, scenario, run_id, ticks):
+    if sample.get("correctnessPass") is not True:
+        raise ValueError("Physics correctness failed: " + sample.get("correctnessError", "missing evidence"))
     if (sample["schema"] != 1 or sample["engine"] != engine
             or sample["scenario"] != scenario or sample["runId"] != run_id
             or sample["correctnessPass"] is not True or sample["queryChecks"] != 19):
@@ -152,7 +154,8 @@ def main():
         env["WE_BENCH_GAME_DIR"] = str(evidence / "prepare")
         for engine in ("sable", "worldengine"):
             run_command([wrapper, f"-PbenchmarkEngine={engine}", ":benchmark:classes",
-                         ":neoforge:classes", ":worldengine_rapier:jar", *common],
+                         ":neoforge:classes", ":worldengine_rapier:jar",
+                         ":benchmark:prepareServerRun", *common],
                         root, env, evidence / f"prepare-{engine}.log", args.timeout)
         frozen = fingerprint(root)
         (evidence / "inputs.json").write_text(json.dumps(frozen, indent=2))
@@ -171,6 +174,9 @@ def main():
                     (game / "server.properties").write_text(
                         f"server-ip=127.0.0.1\nserver-port={port}\nonline-mode=false\n"
                         "level-type=minecraft:flat\nlevel-seed=470101\n"
+                        'generator-settings={"layers":[{"block":"minecraft:bedrock","height":1},'
+                        '{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],'
+                        '"biome":"minecraft:plains","features":false,"lakes":false}\n'
                         "generate-structures=false\nview-distance=4\nsimulation-distance=4\n"
                         "spawn-protection=0\nmax-players=1\n")
                     output = game / "sample.json"

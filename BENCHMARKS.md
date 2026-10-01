@@ -6,6 +6,31 @@ comparison below runs actual Sable 2.0.5 in fresh Minecraft 1.21.1 NeoForge JVMs
 first without the addon, then with the production addon/provider. No performance
 improvement is claimed until the complete comparison passes.
 
+## Current finding — comparison blocked by physics regression
+
+On 1 October 2026, the stock Sable supported64 fixture passed twice on on-prem-1.
+The addon fixture failed twice using the checked-in release native bundle and
+production Java sources from main at `ac50f1643ac66df036c383822c11e2c89c9eebf4`.
+The second run used an explicit identical flat-world generator and captured the
+failed body's pose:
+
+| Engine | First body's initial Y | Final Y after 200 ticks | Correctness |
+| --- | --- | --- | --- |
+| Stock Sable 2.0.5 | -55.5 | -57.50255 | Passed; settled on the stone support |
+| World Engine 0.1.0 | -55.5 | -849.5 | Failed; escaped the support |
+
+This is a dedicated server with forced loaded fixture chunks and no connected
+players. Both runs use two physics substeps and the same solver settings.
+The benchmark intentionally refuses to summarize this failed pair as a speedup.
+Native-source/bundle consistency and terrain/residency handling still need
+investigation before attributing the regression to a specific code path.
+
+The [failed-run evidence](docs/benchmarks/stock-sable-failure-2026-10-01.json)
+contains the raw ticks, body poses, environment, provider identity and frozen
+source/runtime input hashes. The measured checkout contains benchmark-only
+instrumentation and is recorded as dirty; it is not a packaged-release
+certification. Original complete logs are retained on the test host.
+
 ## Run
 
 Use Java 21 and Python 3.11+, on an otherwise idle machine:

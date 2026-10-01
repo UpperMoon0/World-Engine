@@ -50,6 +50,8 @@ public final class ComparisonHarness {
     private boolean ready;
     private long start, cpu, allocated, processCpuStart;
     private double[] initialY;
+    private double[] previousY;
+    private int movingBodyObservations;
 
     public ComparisonHarness() {
         NeoForge.EVENT_BUS.register(this);
@@ -107,6 +109,7 @@ public final class ComparisonHarness {
                             pos.getX() + 1, pos.getY(), pos.getZ() + 1)));
         }
         initialY = bodies.stream().mapToDouble(body -> body.logicalPose().position().y()).toArray();
+        previousY = initialY.clone();
         result.put("schema", 1);
         result.put("runId", System.getenv("WE_BENCH_RUN"));
         result.put("engine", engine);
@@ -132,10 +135,14 @@ public final class ComparisonHarness {
     public void pre(ServerTickEvent.Pre event) {
         if (!ready) return;
         // Equivalent workload commands are deliberately outside the tick timing interval.
-        if ("active64".equals(scenario) && ticks % 10 == 0) {
-            for (ServerSubLevel body : bodies) {
-                SubLevelPhysicsSystem.require(level).getPhysicsHandle(body)
-                        .addLinearAndAngularVelocity(new Vector3d(0, 0.5, 0), new Vector3d());
+        if ("active64".equals(scenario)) {
+            for (int i = 0; i < bodies.size(); i++) {
+                ServerSubLevel body = bodies.get(i);
+                double y = body.logicalPose().position().y();
+                if (ticks >= warmup && Math.abs(y - previousY[i]) > 0.01) movingBodyObservations++;
+                previousY[i] = y;
+                if (ticks % 10 == 0) SubLevelPhysicsSystem.require(level).getPhysicsHandle(body)
+                        .addLinearAndAngularVelocity(new Vector3d(0, 2.0, 0), new Vector3d());
             }
         }
         if ("edits64".equals(scenario) && ticks % 10 == 0) {
@@ -164,13 +171,23 @@ public final class ComparisonHarness {
         ticks++;
         if (ticks == warmup + measured) {
             long processCpu = os.getProcessCpuTime() - processCpuStart;
-            verify();
             result.put("samples", samples);
             result.put("processCpuMs", processCpu / 1e6);
+            result.put("initialY", initialY);
+            result.put("finalPoses", bodies.stream().map(body -> Map.of(
+                    "x", body.logicalPose().position().x(), "y", body.logicalPose().position().y(),
+                    "z", body.logicalPose().position().z(), "boundsMinY", body.boundingBox().minY(),
+                    "removed", body.isRemoved())).toList());
             result.put("gcCollections", ManagementFactory.getGarbageCollectorMXBeans().stream()
                     .map(bean -> Map.of("name", bean.getName(), "count", bean.getCollectionCount(),
                             "timeMs", bean.getCollectionTime())).toList());
-            result.put("correctnessPass", true);
+            try {
+                verify();
+                result.put("correctnessPass", true);
+            } catch (IllegalStateException failure) {
+                result.put("correctnessPass", false);
+                result.put("correctnessError", failure.getMessage());
+            }
             Path output = Path.of(System.getenv("WE_BENCH_OUTPUT"));
             Files.createDirectories(output.getParent());
             Files.writeString(output, new GsonBuilder().setPrettyPrinting().create().toJson(result));
@@ -182,17 +199,20 @@ public final class ComparisonHarness {
     private void verify() {
         require(SubLevelContainer.getContainer(level).getAllSubLevels().size() == bodies.size(),
                 "Body population changed");
-        List<Map<String, Object>> poses = new ArrayList<>();
         for (int i = 0; i < bodies.size(); i++) {
             ServerSubLevel body = bodies.get(i);
             var position = body.logicalPose().position();
             require(!body.isRemoved() && Double.isFinite(position.x()) && Double.isFinite(position.y())
                     && Double.isFinite(position.z()), "Missing/non-finite body");
             require(position.y() >= initialY[i] - 4 && position.y() <= initialY[i] + 4,
-                    "Body escaped terrain support or simulation diverged");
+                    "Body " + i + " escaped terrain support: initialY=" + initialY[i]
+                            + ", final=" + position);
+            if (!"active64".equals(scenario)) {
+                require(Math.abs(position.y() + 57.5) < 0.15 && position.y() < initialY[i] - 1.5,
+                        "Body did not fall and settle on the known support height");
+            }
             // Four blocks and valid collision geometry must survive the real pipeline.
             require(body.getMassTracker() != null && !body.getMassTracker().isInvalid(), "Invalid body mass");
-            poses.add(Map.of("x", position.x(), "y", position.y(), "z", position.z()));
         }
         // Compare production queries to an independent exact AABB oracle.
         int queryChecks = 0;
@@ -204,7 +224,9 @@ public final class ComparisonHarness {
             require(actual.equals(expected), "Spatial query differs from exact AABB oracle");
             queryChecks++;
         }
-        result.put("finalPoses", poses);
+        if ("active64".equals(scenario)) require(movingBodyObservations >= bodies.size(),
+                "Active fixture did not show real body motion during measurement");
+        result.put("movingBodyObservations", movingBodyObservations);
         result.put("queryChecks", queryChecks);
     }
 

@@ -1,4 +1,3 @@
-import copy
 import unittest
 from benchmark_sable import compare_pair, quantiles, validate
 
@@ -13,6 +12,13 @@ def sample(engine="sable"):
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_failed_physics_rejected(self):
+        failed = sample("worldengine")
+        failed["correctnessPass"] = False
+        failed["correctnessError"] = "Body escaped terrain support"
+        with self.assertRaisesRegex(ValueError, "Body escaped terrain support"):
+            validate(failed, "worldengine", "idle", "run", 1)
+
     def test_missing_ticks_rejected(self):
         with self.assertRaises(ValueError):
             validate(sample(), "sable", "idle", "run", 2)

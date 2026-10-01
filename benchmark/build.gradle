@@ -10,6 +10,8 @@ repositories {
     maven { url = 'https://maven.blamejared.com' }
     maven { url = 'https://maven.createmod.net' }
     maven { url = 'https://maven.ithundxr.dev/hidden' }
+    maven { url = 'https://maven.ithundxr.dev/snapshots' }
+    maven { url = 'https://maven.tterrag.com' }
 }
 def engine = providers.gradleProperty('benchmarkEngine').getOrElse('sable')
 if (!(engine in ['sable', 'worldengine'])) throw new GradleException('Invalid benchmarkEngine')

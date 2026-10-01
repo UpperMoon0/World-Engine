@@ -120,6 +120,7 @@ public final class ComparisonHarness {
         result.put("warmupTicks", warmup);
         result.put("measuredTicks", measured);
         result.put("physicsConfig", new GsonBuilder().create().toJsonTree(system.getConfig()));
+        if (addon) result.put("submittedSceneSettingsAtStart", submittedSceneSettings());
         result.put("java", System.getProperty("java.runtime.version"));
         result.put("vm", System.getProperty("java.vm.name"));
         result.put("jvmArgs", ManagementFactory.getRuntimeMXBean().getInputArguments());
@@ -174,6 +175,9 @@ public final class ComparisonHarness {
             result.put("samples", samples);
             result.put("processCpuMs", processCpu / 1e6);
             result.put("initialY", initialY);
+            if ("worldengine".equals(engine)) {
+                result.put("submittedSceneSettingsAtEnd", submittedSceneSettings());
+            }
             result.put("finalPoses", bodies.stream().map(body -> Map.of(
                     "x", body.logicalPose().position().x(), "y", body.logicalPose().position().y(),
                     "z", body.logicalPose().position().z(), "boundsMinY", body.boundingBox().minY(),
@@ -228,6 +232,13 @@ public final class ComparisonHarness {
                 "Active fixture did not show real body motion during measurement");
         result.put("movingBodyObservations", movingBodyObservations);
         result.put("queryChecks", queryChecks);
+    }
+
+    private Object submittedSceneSettings() throws ReflectiveOperationException {
+        // Reflection keeps the stock source set free of addon classes. This is
+        // setter-completion evidence, not a native readback API.
+        Object pipeline = SubLevelPhysicsSystem.require(level).getPipeline();
+        return pipeline.getClass().getMethod("worldengine$appliedSolverSettings").invoke(pipeline);
     }
 
     private static void require(boolean condition, String message) {

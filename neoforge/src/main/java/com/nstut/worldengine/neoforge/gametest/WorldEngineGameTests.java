@@ -2,6 +2,7 @@ package com.nstut.worldengine.neoforge.gametest;
 
 import com.nstut.worldengine.physics.WorldEngineBodyIndex;
 import com.nstut.worldengine.api.WorldEngineTerrainBodies;
+import com.nstut.worldengine.api.WorldEngineSolverConfiguration;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.api.SubLevelAssemblyHelper;
 import dev.ryanhcode.sable.companion.math.BoundingBox3d;
@@ -49,6 +50,19 @@ public final class WorldEngineGameTests {
                         helper.fail("Assembled sublevel fell through its terrain support: initialY="
                                 + startingY + ", final=" + subLevel.logicalPose().position()
                                 + ", support=" + level.getBlockState(support));
+                    }
+                })
+                .thenExecute(() -> {
+                    SubLevelPhysicsSystem system = SubLevelPhysicsSystem.require(level);
+                    if (!(system.getPipeline() instanceof WorldEngineSolverConfiguration configuration)) {
+                        helper.fail("Solver configuration diagnostics unavailable");
+                        return;
+                    }
+                    var applied = configuration.worldengine$appliedSolverSettings();
+                    if (applied.size() < 2) helper.fail("Fixture did not create a late body region");
+                    var expected = WorldEngineSolverConfiguration.Settings.from(system.getConfig());
+                    if (applied.values().stream().anyMatch(settings -> !settings.equals(expected))) {
+                        helper.fail("Late physics region did not inherit solver settings");
                     }
                 })
                 .thenSucceed();

@@ -6,6 +6,7 @@ import com.nstut.worldengine.api.PhysicsRegion;
 import com.nstut.worldengine.api.WorldEnginePhysicsSystem;
 import com.nstut.worldengine.api.WorldEnginePoseSynchronizer;
 import com.nstut.worldengine.api.WorldEngineTerrainBodies;
+import com.nstut.worldengine.api.WorldEngineSolverConfiguration;
 import dev.ryanhcode.sable.api.physics.PhysicsPipelineBody;
 import dev.ryanhcode.sable.api.physics.constraint.*;
 import dev.ryanhcode.sable.api.physics.mass.MassTracker;
@@ -74,6 +75,8 @@ import org.joml.Vector3dc;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -83,7 +86,7 @@ import java.util.concurrent.Executors;
 /**
  * Implementation of {@link PhysicsPipeline} for the rust Rapier 3D physics engine.
  */
-public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSynchronizer, WorldEngineTerrainBodies {
+public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSynchronizer, WorldEngineTerrainBodies, WorldEngineSolverConfiguration {
     private record ScheduledRegion(long tick, long generation, RapierPhysicsRegion region) {}
     private record RegionStep(RapierPhysicsRegion region, int elapsedTicks) {}
 
@@ -121,6 +124,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     private long physicsTickCounter;
     private long universeTickCounter;
     private long universeHandle;
+    private Settings solverSettings = Settings.from(new PhysicsConfigData());
+    private final Long2ObjectMap<Settings> appliedSolverSettings = new Long2ObjectOpenHashMap<>();
 
     public long getUniverseHandle() { return this.universeHandle; }
 
@@ -139,10 +144,14 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     public double getUniversalDrag() { return this.universalDrag; }
 
     void registerRegion(RapierPhysicsRegion region) {
+        // Regions can be created long after updateConfigFrom, including during
+        // materialization and interaction splits. Configure before their first step.
+        this.applySolverSettings(region.getSceneHandle());
         this.markRegionDirty(region);
     }
 
     void unregisterRegion(RapierPhysicsRegion region) {
+        this.appliedSolverSettings.remove(region.getSceneHandle());
         this.activeRegions.remove(region);
         this.dirtyRegions.remove(region);
         this.steppedRegions.remove(region);
@@ -271,6 +280,7 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         this.dirtyRegions.clear();
         this.steppedRegions.clear();
         this.scheduledRegions.clear();
+        this.appliedSolverSettings.clear();
         this.terrainSectionRegions.clear();
         this.regionWorkers.shutdown();
         if (this.universeHandle != 0) {
@@ -1236,13 +1246,33 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
      */
     @Override
     public void updateConfigFrom(final PhysicsConfigData data) {
+        // Copy values even before init; callers may reuse and mutate the data object.
+        this.solverSettings = Settings.from(data);
         if (this.spatialIndex == null) return;
         for (PhysicsRegion region : this.spatialIndex.getRegions()) {
-            long sceneHandle = region.getSceneHandle();
-            Rapier3D.configFrequencyAndDamping(sceneHandle, data.contactSpringFrequency, data.contactSpringDampingRatio);
-            Rapier3D.configSolverIterations(sceneHandle, data.solverIterations, data.pgsIterations, data.stabilizationIterations);
-            Rapier3D.configMinIslandSize(sceneHandle, data.minDynamicBodiesPerIsland);
+            this.applySolverSettings(region.getSceneHandle());
         }
+    }
+
+    private void applySolverSettings(long sceneHandle) {
+        Settings settings = this.solverSettings;
+        Rapier3D.configFrequencyAndDamping(sceneHandle, settings.contactSpringFrequency(), settings.contactSpringDampingRatio());
+        Rapier3D.configSolverIterations(sceneHandle, settings.solverIterations(), settings.pgsIterations(), settings.stabilizationIterations());
+        Rapier3D.configMinIslandSize(sceneHandle, settings.minDynamicBodiesPerIsland());
+        this.appliedSolverSettings.put(sceneHandle, settings);
+    }
+
+    @Override
+    public Map<Long, Settings> worldengine$appliedSolverSettings() {
+        Map<Long, Settings> snapshot = new LinkedHashMap<>();
+        if (this.spatialIndex != null) {
+            for (PhysicsRegion region : this.spatialIndex.getRegions()) {
+                Settings settings = this.appliedSolverSettings.get(region.getSceneHandle());
+                if (settings == null) throw new IllegalStateException("Unconfigured physics region");
+                snapshot.put(region.getSceneHandle(), settings);
+            }
+        }
+        return Map.copyOf(snapshot);
     }
 
     /**

@@ -13,7 +13,7 @@ Y=-57.50255, while World Engine fell to Y=-849.5 after 200 ticks. The
 [original failed evidence](docs/benchmarks/stock-sable-failure-2026-10-01.json)
 is retained.
 
-Tracing the Java ticket manager and native collision path found two problems:
+Tracing the Java ticket manager and native collision path found three problems:
 
 - The ticket mixin renewed terrain tickets only for active bodies. Sleeping
   resident bodies lost their support after ticket expiry. Tickets now cover
@@ -21,6 +21,10 @@ Tracing the Java ticket manager and native collision path found two problems:
 - The universe scheduler counted solver substeps as 50 ms server ticks.
   A separate server-tick counter keeps ballistic elapsed time independent of
   the number of solver substeps.
+- Configuration updates affected existing scenes only. Later body regions kept
+  native defaults. The pipeline now copies the latest settings and applies them
+  to every new region before simulation, including regions created after reload.
+  Timings captured before this correction were discarded.
 
 GameTests also exposed a stale x86-64 Windows DLL in the shipped bundle. Commit
 `db3511e` replaced the CI-built DLL from `da52395` with an older local DLL.
@@ -70,6 +74,10 @@ provider, and rejects World Engine mixin resources in the baseline.
   flat world; no existing player world or public server is used.
 - Same Sable version, loader, dependencies, Java runtime, heap size and physics
   configuration, including substeps. No reduced solver quality or forced GC.
+- Addon evidence records the six solver settings submitted through all three JNI
+  setters for every live scene at start and end. Missing or unequal submissions
+  invalidate the run. These diagnostics verify successful setter calls, not
+  native readback; the JNI setter mappings were checked against the Rust source.
 - 100 warmup ticks, then 100 measured ticks per process. Preparation, assembly,
   workload commands, correctness checks and output I/O are outside tick intervals.
 - Inputs are compiled before measurement and source/classes/resources/JAR hashes

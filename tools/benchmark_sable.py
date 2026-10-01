@@ -37,6 +37,18 @@ def validate(sample, engine, scenario, run_id, ticks):
     for field in ("tickMs", "serverThreadCpuMs", "serverThreadAllocatedBytes"):
         quantiles([r[field] for r in rows])
     quantiles([sample["processCpuMs"]])
+    if engine == "worldengine":
+        for field in ("submittedSceneSettingsAtStart", "submittedSceneSettingsAtEnd"):
+            scenes = sample.get(field)
+            if not isinstance(scenes, dict) or not scenes:
+                raise ValueError("Missing submitted solver settings")
+            for settings in scenes.values():
+                if not settings or any(sample["physicsConfig"].get(k) != v for k, v in settings.items()):
+                    raise ValueError("Unequal submitted solver settings")
+                if set(settings) != {"contactSpringFrequency", "contactSpringDampingRatio",
+                        "solverIterations", "pgsIterations", "stabilizationIterations",
+                        "minDynamicBodiesPerIsland"}:
+                    raise ValueError("Incomplete submitted solver settings")
     expected = {"idle": 0, "supported64": 64, "supported256": 256, "active64": 64, "edits64": 64}[scenario]
     if sample["bodies"] != expected or len(sample["finalPoses"]) != expected:
         raise ValueError("Fixture population changed")

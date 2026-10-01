@@ -51,6 +51,9 @@ The normal build packages the checked-in native binaries. Rebuilding every relea
 
 Correctness tests run as part of `build`. Query crossover benchmarks are opt-in through `:common:jmh`.
 
+For the real dedicated-server comparison against stock Sable, see [BENCHMARKS.md](BENCHMARKS.md).
+Native and query microbenchmarks alone do not establish an in-game speedup.
+
 ## Releases and support
 
 - [Version changelogs](changelog/)

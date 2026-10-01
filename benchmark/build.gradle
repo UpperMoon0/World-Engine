@@ -1,0 +1,41 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev'
+}
+
+java { toolchain.languageVersion = JavaLanguageVersion.of(21) }
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.ryanhcode.dev/releases' }
+    maven { url = 'https://maven.blamejared.com' }
+    maven { url = 'https://maven.createmod.net' }
+    maven { url = 'https://maven.ithundxr.dev/hidden' }
+}
+def engine = providers.gradleProperty('benchmarkEngine').getOrElse('sable')
+if (!(engine in ['sable', 'worldengine'])) throw new GradleException('Invalid benchmarkEngine')
+if (engine == 'worldengine') evaluationDependsOn(':neoforge')
+neoForge {
+    version = neoforge_version
+    runs {
+        server {
+            server()
+            gameDirectory = file(providers.environmentVariable('WE_BENCH_GAME_DIR').get())
+            programArgument '--nogui'
+            jvmArgument '-Xms2G'
+            jvmArgument '-Xmx2G'
+            systemProperty 'we.benchmark.engine', engine
+        }
+    }
+    mods {
+        we_benchmark { sourceSet sourceSets.main }
+        if (engine == 'worldengine') {
+            worldengine { sourceSet project(':neoforge').sourceSets.main }
+        }
+    }
+}
+dependencies {
+    implementation "dev.ryanhcode.sable:sable-neoforge-$minecraft_version:$sable_version"
+    if (engine == 'worldengine') {
+        runtimeOnly project(path: ':worldengine_rapier', configuration: 'runtimeElements')
+    }
+}

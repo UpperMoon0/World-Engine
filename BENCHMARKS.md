@@ -6,30 +6,36 @@ comparison below runs actual Sable 2.0.5 in fresh Minecraft 1.21.1 NeoForge JVMs
 first without the addon, then with the production addon/provider. No performance
 improvement is claimed until the complete comparison passes.
 
-## Current finding — comparison blocked by physics regression
+## Terrain support and native bundle correction
 
-On 1 October 2026, the stock Sable supported64 fixture passed twice on on-prem-1.
-The addon fixture failed twice using the checked-in release native bundle and
-production Java sources from main at `ac50f1643ac66df036c383822c11e2c89c9eebf4`.
-The second run used an explicit identical flat-world generator and captured the
-failed body's pose:
+The first comparison exposed a real regression: stock Sable settled at
+Y=-57.50255, while World Engine fell to Y=-849.5 after 200 ticks. The
+[original failed evidence](docs/benchmarks/stock-sable-failure-2026-10-01.json)
+is retained.
 
-| Engine | First body's initial Y | Final Y after 200 ticks | Correctness |
-| --- | --- | --- | --- |
-| Stock Sable 2.0.5 | -55.5 | -57.50255 | Passed; settled on the stone support |
-| World Engine 0.1.0 | -55.5 | -849.5 | Failed; escaped the support |
+Tracing the Java ticket manager and native collision path found two problems:
 
-This is a dedicated server with forced loaded fixture chunks and no connected
-players. Both runs use two physics substeps and the same solver settings.
-The benchmark intentionally refuses to summarize this failed pair as a speedup.
-Native-source/bundle consistency and terrain/residency handling still need
-investigation before attributing the regression to a specific code path.
+- The ticket mixin renewed terrain tickets only for active bodies. Sleeping
+  resident bodies lost their support after ticket expiry. Tickets now cover
+  active and resident bodies without scanning the entire abstract registry.
+- The universe scheduler counted solver substeps as 50 ms server ticks.
+  A separate server-tick counter keeps ballistic elapsed time independent of
+  the number of solver substeps.
 
-The [failed-run evidence](docs/benchmarks/stock-sable-failure-2026-10-01.json)
-contains the raw ticks, body poses, environment, provider identity and frozen
-source/runtime input hashes. The measured checkout contains benchmark-only
-instrumentation and is recorded as dirty; it is not a packaged-release
-certification. Original complete logs are retained on the test host.
+GameTests also exposed a stale x86-64 Windows DLL in the shipped bundle. Commit
+`db3511e` replaced the CI-built DLL from `da52395` with an older local DLL.
+The restored bundle uses the CI-built Windows entry. Its other five native
+entries are byte-for-byte unchanged, and the complete Rust source tree is
+unchanged since that CI build. A clean source rebuild and the restored bundle
+both pass the required GameTests; the stale bundle failed terrain support.
+
+The support GameTest now runs for 160 ticks, past native sleep and ticket
+expiry. A ballistic GameTest checks elapsed time in open space; restoring the
+old clock makes it fail. The benchmark also runs supported bodies for 200 ticks
+and compares their final poses with stock Sable.
+
+Performance results are specific to the fixtures, host, bundled natives and
+loader tested. They are not a blanket performance claim.
 
 ## Run
 
@@ -90,11 +96,14 @@ provider, and rejects World Engine mixin resources in the baseline.
 - **p95 and maximum tick ms:** per-trial tail tick latency.
 - **Server-thread CPU ms and allocated bytes:** Java thread counters over those
   hook intervals. Allocations are cumulative, not retained or peak memory.
+  Window-averaged thread CPU is also reported because coarse Windows counters
+  can give a zero per-tick median despite substantial accumulated work.
 - **Process CPU ms per tick:** whole Minecraft JVM CPU over the measured window,
   including native workers, networking, GC and instrumentation. It is not CPU
   percentage. It prevents native worker offloading from appearing as free work.
 
-Summaries use each trial's median (or p95/max), then report median, q1 and q3 across
+Summaries use each trial's median (or p95/max, or full-window CPU average),
+then report median, q1 and q3 across
 trials. Individual ticks are correlated and are not treated as independent trials.
 Quartiles show spread, not confidence intervals. Coarse OS CPU counters can hide
 small differences; interpret them over the complete measurement window.

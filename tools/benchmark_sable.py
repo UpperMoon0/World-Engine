@@ -112,6 +112,12 @@ def summarize(runs):
             row["p95TickMs"] = quantiles([sorted(s["tickMs"] for s in r["samples"])[
                 math.ceil(.95 * len(r["samples"]))-1] for r in selected])
             row["maxTickMs"] = quantiles([max(s["tickMs"] for s in r["samples"]) for r in selected])
+            # Windows thread CPU counters can advance in coarse quanta. The
+            # per-tick median may be zero; also report CPU accumulated over the
+            # full measured window, averaged per tick.
+            row["serverThreadCpuMsPerTick"] = quantiles([
+                sum(s["serverThreadCpuMs"] for s in r["samples"]) / r["measuredTicks"]
+                for r in selected])
             row["processCpuMsPerTick"] = quantiles([r["processCpuMs"]/r["measuredTicks"] for r in selected])
             rows.append(row)
     return rows

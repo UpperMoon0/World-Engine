@@ -1,5 +1,5 @@
 import unittest
-from benchmark_sable import compare_pair, quantiles, validate
+from benchmark_sable import compare_pair, quantiles, summarize, validate
 
 
 def sample(engine="sable"):
@@ -30,6 +30,17 @@ class EvidenceTests(unittest.TestCase):
     def test_nan_rejected(self):
         with self.assertRaises(ValueError):
             quantiles([float("nan")])
+
+    def test_coarse_cpu_counter_keeps_accumulated_work(self):
+        row = sample()
+        row["measuredTicks"] = 3
+        row["samples"] = [
+            dict(tick=i, tickMs=1, serverThreadCpuMs=cpu, serverThreadAllocatedBytes=100)
+            for i, cpu in enumerate((0, 15.625, 0))
+        ]
+        summary = summarize([row])[0]
+        self.assertEqual(summary["serverThreadCpuMs"]["median"], 0)
+        self.assertAlmostEqual(summary["serverThreadCpuMsPerTick"]["median"], 15.625 / 3)
 
     def test_substep_reduction_rejected(self):
         left = sample()

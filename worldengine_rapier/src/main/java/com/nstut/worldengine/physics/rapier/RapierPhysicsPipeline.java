@@ -5,6 +5,7 @@ import dev.ryanhcode.sable.api.physics.PhysicsPipeline;
 import com.nstut.worldengine.api.PhysicsRegion;
 import com.nstut.worldengine.api.WorldEnginePhysicsSystem;
 import com.nstut.worldengine.api.WorldEnginePoseSynchronizer;
+import com.nstut.worldengine.api.WorldEngineTerrainBodies;
 import dev.ryanhcode.sable.api.physics.PhysicsPipelineBody;
 import dev.ryanhcode.sable.api.physics.constraint.*;
 import dev.ryanhcode.sable.api.physics.mass.MassTracker;
@@ -82,7 +83,7 @@ import java.util.concurrent.Executors;
 /**
  * Implementation of {@link PhysicsPipeline} for the rust Rapier 3D physics engine.
  */
-public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSynchronizer {
+public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSynchronizer, WorldEngineTerrainBodies {
     private record ScheduledRegion(long tick, long generation, RapierPhysicsRegion region) {}
     private record RegionStep(RapierPhysicsRegion region, int elapsedTicks) {}
 
@@ -118,9 +119,21 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     private Vector3dc gravity;
     private double universalDrag;
     private long physicsTickCounter;
+    private long universeTickCounter;
     private long universeHandle;
 
     public long getUniverseHandle() { return this.universeHandle; }
+
+    @Override
+    public List<ServerSubLevel> worldengine$ticketBodies(List<ServerSubLevel> activeBodies) {
+        Set<ServerSubLevel> bodies = new ReferenceOpenHashSet<>(activeBodies);
+        if (this.spatialIndex != null) {
+            for (PhysicsRegion region : this.spatialIndex.getRegions()) {
+                bodies.addAll(region.getActiveSubLevels());
+            }
+        }
+        return List.copyOf(bodies);
+    }
 
     public Vector3dc getGravity() { return this.gravity; }
     public double getUniversalDrag() { return this.universalDrag; }
@@ -272,7 +285,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     @Override
     public void prePhysicsTicks() {
         if (this.universeHandle == 0) return;
-        Rapier3D.tickUniverse(this.universeHandle, this.physicsTickCounter, 1.0 / 20.0,
+        // Universe deadlines and ballistic elapsed time use server ticks. The
+        // region counter below advances once per solver substep instead.
+        Rapier3D.tickUniverse(this.universeHandle, this.universeTickCounter++, 1.0 / 20.0,
                 this.gravity.x(), this.gravity.y(), this.gravity.z());
 
         int capacityEntries = this.materializationBuffer.capacity() / 32;

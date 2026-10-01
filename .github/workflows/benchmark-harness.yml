@@ -2,6 +2,9 @@ name: Benchmark harness
 on:
   pull_request:
     paths:
+      - 'common/src/main/java/**'
+      - 'worldengine_rapier/src/main/**'
+      - 'neoforge/src/main/java/**'
       - 'benchmark/**'
       - 'tools/*benchmark_sable.py'
       - 'settings.gradle'

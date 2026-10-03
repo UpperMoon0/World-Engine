@@ -20,19 +20,20 @@ The full technical migration is documented in [MIGRATION.md](MIGRATION.md).
 
 Five paired trials per workload on Minecraft 1.21.1 NeoForge used 50 fresh server
 processes, each with 300 warmup and 300 measured ticks. Total process CPU fell
-13–43% and p95 tick latency fell 31–64% across the five fixtures. Server-thread
-Java allocation fell 3–55% in body workloads and was unchanged when idle.
+11–40% and p95 tick latency fell 30–60% across the five fixtures. Server-thread
+Java allocation fell 2–35% in body workloads and was unchanged when idle.
 
-![World Engine 0.1.1 benchmark against stock Sable](docs/benchmarks/2026-10-04-9ceadf4/world-engine-0.1.1.png)
+![World Engine 0.1.1 benchmark against stock Sable](docs/benchmarks/2026-10-04-c38bf71/world-engine-0.1.1.png)
 
-Active-body median tick latency fell 7.3%. Server-thread CPU increased 13.9% for
-active bodies despite lower total process CPU. These results do not establish
-that every metric improves. They measure revision `9ceadf4`; later optimizations
-require a separate comparison. Each workload's five pairs share one CI runner;
-workloads run on separate runners and are compared individually.
+Median tick latency fell 23–63%. Server-thread CPU fell 3–57%, including 2.6%
+for active bodies. All six reported median measures improved across the five
+fixtures except idle allocation, which was unchanged. These results measure
+revision `c38bf71`. Each workload's five pairs share one CI runner; workloads run
+on separate runners and are compared individually. They do not establish that
+every individual tick or every possible workload is faster.
 
-See the [complete results and raw evidence](docs/benchmarks/2026-10-04-9ceadf4/README.md),
-[successful comparison run](https://github.com/UpperMoon0/World-Engine/actions/runs/37155914688),
+See the [complete results and raw evidence](docs/benchmarks/2026-10-04-c38bf71/README.md),
+[successful comparison run](https://github.com/UpperMoon0/World-Engine/actions/runs/37157084961),
 and [benchmark protocol](BENCHMARKS.md). These dedicated-server fixtures do not
 measure client FPS, retained RAM, arbitrary large ships or every addon.
 

@@ -8,10 +8,11 @@ improvement is claimed until the complete comparison passes.
 
 ## Latest release-bundle comparison
 
-The [0.1.1 results, figure and raw measurements](docs/benchmarks/2026-10-04-9ceadf4/README.md)
-record five paired trials per workload on measured source 9ceadf4de2b9. All
-paired physics checks passed. The report retains server-thread CPU increases and
-individual outliers alongside improvements in total CPU and tick latency.
+The [0.1.1 results, figure and raw measurements](docs/benchmarks/2026-10-04-c38bf71/README.md)
+record five paired trials per workload on measured source c38bf7132a39. All
+paired physics checks passed. All six reported median measures improved in each
+fixture except idle allocation, which was unchanged. The report retains trial
+spread and individual maxima; it does not claim every tick is faster.
 
 ## Terrain support and native bundle correction
 

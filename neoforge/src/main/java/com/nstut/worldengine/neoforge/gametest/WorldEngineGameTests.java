@@ -196,6 +196,42 @@ public final class WorldEngineGameTests {
     }
 
     @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", timeoutTicks = 200)
+    public static void interactingBodiesKeepSupportAcrossRegionBoundary(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        // Deliberately straddle the nearest 4096-block region boundary. Keep
+        // this fixture away from the ordinary structure grid and its bodies.
+        int boundary = (int) Math.floor((origin.getX() + 2048.0) / 4096.0) * 4096 + 2048;
+        int z = origin.getZ() + 128;
+        List<ServerSubLevel> bodies = new java.util.ArrayList<>();
+        for (int x : new int[]{boundary - 2, boundary + 2}) {
+            level.setChunkForced(x >> 4, z >> 4, true);
+            BlockPos floor = new BlockPos(x, origin.getY() + 1, z);
+            for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+                for (int dy = 0; dy <= 3; dy++) {
+                    level.setBlock(floor.offset(dx, dy, dz), dy == 0
+                            ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState(), 3);
+                }
+            }
+            BlockPos block = floor.above();
+            level.setBlock(block, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+            bodies.add(SubLevelAssemblyHelper.assembleBlocks(level, block, List.of(block),
+                    new BoundingBox3i(block.getX(), block.getY(), block.getZ(), block.getX(), block.getY(), block.getZ())));
+        }
+        helper.startSequence().thenIdle(160).thenExecute(() -> {
+            for (int x : new int[]{boundary - 2, boundary + 2}) level.setChunkForced(x >> 4, z >> 4, false);
+            for (ServerSubLevel body : bodies) {
+                double y = body.logicalPose().position().y();
+                if (body.isRemoved() || !Double.isFinite(y) || Math.abs(y - (origin.getY() + 2.5)) > 0.15) {
+                    helper.fail("Body lost terrain support while merging boundary regions: y=" + y
+                            + ", expected=" + (origin.getY() + 2.5) + ", removed=" + body.isRemoved());
+                }
+            }
+        }).thenSucceed();
+    }
+
+    @PrefixGameTestTemplate(false)
     @GameTest(template = "physicstest.gravity", timeoutTicks = 80)
     public static void ballisticGravityUsesServerTickTime(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();

@@ -695,8 +695,8 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_step<'
                                 recentered_bounds(universe_body.bounds, scene.local_to_global(*previous_translation));
                             let current_bounds =
                                 recentered_bounds(universe_body.bounds, scene.local_to_global(body.translation().clone()));
-                            if !terrain_overlaps_bounds(&sable, previous_bounds)
-                                && terrain_overlaps_bounds(&sable, current_bounds)
+                            if !terrain_overlaps_bounds(&sable, previous_bounds, *scene.world_origin.read().unwrap())
+                                && terrain_overlaps_bounds(&sable, current_bounds, *scene.world_origin.read().unwrap())
                             {
                                 body.set_position(*previous, true);
                                 body.set_linvel(Vec3::ZERO, true);
@@ -1252,7 +1252,6 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_addChu
         ));
     }
 
-    let has_solid_blocks = blocks.iter().any(|block| block.0 != 0);
     let chunk_serial_callback_blocks = {
         let physics_state = get_physics_state();
         blocks
@@ -1313,9 +1312,8 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_addChu
             }
         } else {
             let key = pack_section_pos(local_x, local_y, local_z);
-            if has_solid_blocks {
-                universe.terrain_sections.insert(pack_section_pos(x, y, z));
-            }
+            // World chunk lifecycle owns dimension-wide coverage. Region
+            // streaming must not add or remove another region's coverage.
             if let Some(old) = main_level_chunks.insert(key, chunk) {
                 if old.serial_callback_blocks > 0 {
                     *terrain_serial_callback_sections =
@@ -1429,10 +1427,8 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_remove
         let physics_state = get_physics_state();
         let collider_map = &physics_state.voxel_collider_map;
         let mut sable_data = scene.sable_data.write().unwrap();
-        let mut universe = scene.universe.write().unwrap();
 
         if global > 0 {
-            universe.terrain_sections.remove(&pack_section_pos(x, y, z));
             if let Some(old) = sable_data
                 .main_level_chunks
                 .remove(&pack_section_pos(local_x, local_y, local_z))
@@ -2606,7 +2602,8 @@ fn body_has_constraints(
             .is_some()
 }
 
-fn terrain_overlaps_bounds(sable: &SableSceneData, bounds: crate::scene::UniverseAabb) -> bool {
+fn terrain_overlaps_bounds(sable: &SableSceneData, bounds: crate::scene::UniverseAabb, world_origin: crate::scene::DVec3) -> bool {
+    let bounds = crate::scene::UniverseAabb { min: bounds.min - world_origin, max: bounds.max - world_origin };
     let min = rapier3d::glamx::IVec3::new(bounds.min.x.floor() as i32, bounds.min.y.floor() as i32, bounds.min.z.floor() as i32);
     let max = rapier3d::glamx::IVec3::new((bounds.max.x - std::f64::EPSILON).floor() as i32, (bounds.max.y - std::f64::EPSILON).floor() as i32, (bounds.max.z - std::f64::EPSILON).floor() as i32);
     let block_count = (max.x as i64 - min.x as i64 + 1)
@@ -2700,7 +2697,7 @@ pub fn check_scene_evictions(
 
         let bounds = Some(ubody.bounds);
         if is_slow && is_gravity_free {
-            let has_collision = bounds.is_some_and(|b| terrain_overlaps_bounds(sable, b)
+            let has_collision = bounds.is_some_and(|b| terrain_overlaps_bounds(sable, b, world_origin)
                 || universe.spatial_index.intersects_any(b, id));
             if !has_collision {
                 if evict_rapier_body(sim, sable, universe, world_origin, id, false, true) {
@@ -2717,7 +2714,7 @@ pub fn check_scene_evictions(
             // These are pure OR predicates. Known streamed terrain can retain
             // residency immediately, without allocating a body-neighbor list.
             let has_collision = universe.swept_intersects_terrain(swept)
-                || terrain_overlaps_bounds(sable, swept)
+                || terrain_overlaps_bounds(sable, swept, world_origin)
                 || universe.spatial_index.intersects_any(swept, id);
             if !has_collision {
                 if evict_rapier_body(sim, sable, universe, world_origin, id, false, true) {
@@ -3290,6 +3287,23 @@ mod residency_tests {
             assembly_root: id,
             assembly_size: 1,
             command_queue: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn global_terrain_bounds_are_checked_in_the_regions_local_frame() {
+        let (_, sable_data, _) = scene_data();
+        let mut sable = sable_data.write().unwrap();
+        let local = IVec3::new(3, -2, 7);
+        let mut section = ChunkSection::new(vec![(0, VoxelPhysicsState::Empty); 4096]);
+        section.set_block(local.x & 15, local.y & 15, local.z & 15, (1, VoxelPhysicsState::Face));
+        sable.main_level_chunks.insert(pack_section_pos(local.x >> 4, local.y >> 4, local.z >> 4), section);
+        for origin in [crate::scene::DVec3::zeros(), crate::scene::DVec3::new(28_000_000.0, 4096.0, -28_000_000.0)] {
+            let occupied = origin + crate::scene::DVec3::new(3.5, -1.5, 7.5);
+            let empty = occupied + crate::scene::DVec3::new(1.0, 0.0, 0.0);
+            let half = crate::scene::DVec3::new(0.2, 0.2, 0.2);
+            assert!(terrain_overlaps_bounds(&sable, crate::scene::UniverseAabb::around(occupied, half), origin));
+            assert!(!terrain_overlaps_bounds(&sable, crate::scene::UniverseAabb::around(empty, half), origin));
         }
     }
 

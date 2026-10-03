@@ -103,6 +103,11 @@ candidates on each collision query; incomplete groups retain individual voxels.
 Native tests compare their occupied union at ordinary and large coordinates.
 Runtime tests remove a rectangular floor beneath a sleeping body and check
 half-height slab support, covering invalidation and partial-shape fallback.
+A separate forced-chunk fixture straddles a 4096-block region boundary and
+requires both interacting bodies to retain floor support after region merging.
+It fails with the preceding release bundle (a body falls to Y=-327 rather than
+Y=-57.5) and passes after making world chunk lifecycle own dimension-wide
+terrain coverage and translating residency bounds into the region's frame.
 `tools/test_jni_signatures.py` checks every Java native declaration against Rust
 argument counts and primitive argument types, including the voxel-registration
 call. These correctness checks do not establish a performance improvement.

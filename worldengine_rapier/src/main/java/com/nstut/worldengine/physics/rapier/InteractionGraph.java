@@ -31,6 +31,7 @@ final class InteractionGraph {
     }
     private static final class StoredBounds {
         double minX, minY, minZ, maxX, maxY, maxZ;
+        boolean coversPlane = true;
         void set(double x, double y, double z, double xx, double yy, double zz) {
             minX = x; minY = y; minZ = z; maxX = xx; maxY = yy; maxZ = zz;
         }
@@ -50,9 +51,12 @@ final class InteractionGraph {
     private final IntArrayList visits = new IntArrayList();
     private final java.util.function.IntConsumer collectVisit = visits::add;
     private final java.util.function.IntConsumer collectCandidate = candidates::add;
+    private double sharedPlaneY;
+    private int planeMisses;
 
     void clear() {
         cells.clear(); ranges.clear(); bounds.clear(); edges.clear(); oversized.clear(); candidates.clear();
+        planeMisses = 0;
     }
 
     IntSet neighbors(int id) {
@@ -69,7 +73,8 @@ final class InteractionGraph {
             IntSet reciprocal = edges.get(neighbor);
             if (reciprocal != null) reciprocal.remove(id);
         }
-        bounds.remove(id);
+        StoredBounds removed = bounds.remove(id);
+        if (removed != null && !removed.coversPlane) planeMisses--;
         oversized.remove(id);
     }
 
@@ -92,9 +97,19 @@ final class InteractionGraph {
 
     void update(int id, double minX, double minY, double minZ, double maxX, double maxY, double maxZ, IntSet affected) {
         StoredBounds fresh = bounds.get(id);
+        boolean horizontalUnchanged = fresh != null && fresh.minX == minX && fresh.minZ == minZ
+                && fresh.maxX == maxX && fresh.maxZ == maxZ;
+        boolean sharedPlaneBefore = planeMisses == 0;
         boolean unchanged = fresh != null && fresh.minX == minX && fresh.minY == minY && fresh.minZ == minZ
                 && fresh.maxX == maxX && fresh.maxY == maxY && fresh.maxZ == maxZ;
-        if (fresh == null) { fresh = new StoredBounds(); bounds.put(id, fresh); }
+        if (fresh == null) {
+            if (bounds.isEmpty()) sharedPlaneY = minY * 0.5 + maxY * 0.5;
+            fresh = new StoredBounds();
+            bounds.put(id, fresh);
+        }
+        boolean coversPlane = minY <= sharedPlaneY && maxY >= sharedPlaneY;
+        if (fresh.coversPlane != coversPlane) planeMisses += coversPlane ? -1 : 1;
+        fresh.coversPlane = coversPlane;
         fresh.set(minX, minY, minZ, maxX, maxY, maxZ);
         IntSet neighbors = edges.get(id);
         if (neighbors == null) { neighbors = new IntOpenHashSet(); edges.put(id, neighbors); }
@@ -103,8 +118,6 @@ final class InteractionGraph {
         // interaction hold still seeds component/migration checks, but identical
         // bounds need no fresh cell or candidate scan.
         if (unchanged) return;
-        visits.clear();
-        neighbors.forEach(collectVisit);
         Range old = ranges.get(id);
         Range range = Range.of(minX, minY, minZ, maxX, maxY, maxZ, old);
         if (!java.util.Objects.equals(range, old)) {
@@ -113,6 +126,15 @@ final class InteractionGraph {
         }
         if (range == null) { ranges.remove(id); oversized.add(id); }
         else { ranges.put(id, range); oversized.remove(id); }
+
+        // If every stored box covered the same Y plane before and after this
+        // update, every pair intersects on Y. Unchanged X/Z bounds then prove
+        // that all exact edges survive vertical movement. Keep cell memberships
+        // fresh above so a later box outside the plane can still discover them.
+        if (horizontalUnchanged && sharedPlaneBefore && coversPlane) return;
+
+        visits.clear();
+        neighbors.forEach(collectVisit);
 
         IntSet queryCandidates;
         if (range != null && range.cells.length == 1 && oversized.isEmpty()) {

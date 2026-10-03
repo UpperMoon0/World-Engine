@@ -42,13 +42,15 @@ def main():
 
     plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11,
                          "axes.spines.top": False, "axes.spines.right": False})
-    fig, grid = plt.subplots(2, 2, figsize=(12.8, 10.2), sharey="row")
+    fig, grid = plt.subplots(3, 2, figsize=(12.8, 14.4), sharey="row")
     axes = grid.ravel()
     fig.patch.set_facecolor("#ffffff")
     metrics = [("tickMs", "Median server tick", "ms", 1.0, 3),
                ("processCpuMsPerTick", "Process CPU per tick", "ms", 1.0, 2),
                ("serverThreadAllocatedBytes", "Java allocation per tick", "KiB", 1024.0, 1),
-               ("p95TickMs", "95th percentile server tick", "ms", 1.0, 3)]
+               ("p95TickMs", "95th percentile server tick", "ms", 1.0, 3),
+               ("serverThreadCpuMsPerTick", "Server-thread CPU per tick", "ms", 1.0, 3),
+               ("maxTickMs", "Median trial maximum tick", "ms", 1.0, 3)]
     for axis, (metric, title, unit, scale, digits) in zip(axes, metrics):
         highest = 100.0
         for index, scenario in enumerate(SCENARIOS):
@@ -71,15 +73,15 @@ def main():
         axis.spines["left"].set_visible(False)
         axis.spines["bottom"].set_color("#d4dae2")
         axis.tick_params(axis="y", length=0)
-    for axis in (axes[0], axes[2]):
+    for axis in (axes[0], axes[2], axes[4]):
         axis.set_yticks(range(len(SCENARIOS)), LABELS, fontsize=12)
         axis.invert_yaxis()
     fig.suptitle(f"World Engine {args.version} vs stock Sable 2.0.5", x=0.51, y=0.965,
                  fontsize=23, fontweight="bold", color="#172b42")
-    fig.text(0.51, 0.905, "Lower is better · Each workload's stock Sable result is 100%", ha="center", fontsize=13)
+    fig.text(0.51, 0.925, "Lower is better · Each workload's stock Sable result is 100%", ha="center", fontsize=13)
     fig.legend(handles=[Patch(color="#94a3b8", label="Stock Sable"),
                         Patch(color="#137b66", label=f"World Engine {args.version}")],
-               loc="upper center", bbox_to_anchor=(0.52, 0.88), ncol=2, frameon=False, fontsize=12)
+               loc="upper center", bbox_to_anchor=(0.52, 0.91), ncol=2, frameon=False, fontsize=12)
     warmup = sorted({run["warmupTicks"] for run in data["runs"]})
     ticks = sorted({run["measuredTicks"] for run in data["runs"]})
     fig.text(0.5, 0.070, f"Minecraft 1.21.1 / NeoForge · {rows[('idle', 'sable')]['trials']} paired trials · "
@@ -88,7 +90,7 @@ def main():
              ha="center", fontsize=10, color="#42566d")
     fig.text(0.5, 0.025, f"Release bundle · source {data['sourceHead'][:12]} · evidence {data['runId']}",
              ha="center", fontsize=9, color="#65758a")
-    fig.subplots_adjust(left=0.205, right=0.985, top=0.79, bottom=0.15, wspace=0.18, hspace=0.55)
+    fig.subplots_adjust(left=0.205, right=0.985, top=0.85, bottom=0.12, wspace=0.18, hspace=0.65)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.output, dpi=160, facecolor=fig.get_facecolor())
     plt.close(fig)

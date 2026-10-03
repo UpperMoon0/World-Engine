@@ -83,4 +83,38 @@ class InteractionGraphTest {
         assertTrue(graph.neighbors(2).isEmpty());
         assertEquals(Set.of(1, 2), affected);
     }
+
+    @Test void sharedPlaneMovementAndDepartureMatchExactOracle() {
+        InteractionGraph graph = new InteractionGraph();
+        Map<Integer, double[]> boxes = new HashMap<>();
+        for (int step = 0; step < 1200; step++) {
+            int id = step % 64;
+            Set<Integer> previousSeeds = independentNeighbors(id, boxes);
+            previousSeeds.add(id);
+            double x = (id % 16) * 4, z = (id / 16) * 4;
+            double y = step >= 400 && step < 800 && id == 0 ? 250 : Math.sin(step * .05);
+            double[] b = {x - 8, y - 8, z - 8, x + 10, y + 9, z + 10};
+            boxes.put(id, b);
+            IntOpenHashSet affected = new IntOpenHashSet();
+            graph.update(id, new InteractionGraph.Bounds(b[0], b[1], b[2], b[3], b[4], b[5]), affected);
+            assertComponentsCovered(previousSeeds, affected, boxes, step);
+            for (int present : boxes.keySet()) {
+                assertEquals(independentNeighbors(present, boxes), graph.neighbors(present),
+                        "plane transition at step " + step + ", id " + present);
+            }
+        }
+        graph.clear();
+        IntOpenHashSet affected = new IntOpenHashSet();
+        graph.update(1, new InteractionGraph.Bounds(0, -1, 0, 2, 1, 2), affected);
+        // The shared-plane shortcut must still update the expanded cell range.
+        graph.update(1, new InteractionGraph.Bounds(0, -1, 0, 2, 300, 2), affected);
+        graph.update(2, new InteractionGraph.Bounds(0, 280, 0, 2, 282, 2), affected);
+        assertEquals(Set.of(2), graph.neighbors(1));
+        assertEquals(Set.of(1), graph.neighbors(2));
+        graph.remove(1);
+        graph.remove(2);
+        graph.update(3, new InteractionGraph.Bounds(0, 500, 0, 2, 502, 2), affected);
+        graph.update(4, new InteractionGraph.Bounds(0, 500, 0, 2, 502, 2), affected);
+        assertEquals(Set.of(4), graph.neighbors(3));
+    }
 }

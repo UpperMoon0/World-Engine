@@ -24,6 +24,7 @@ import dev.ryanhcode.sable.sublevel.plot.LevelPlot;
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem;
 import dev.ryanhcode.sable.sublevel.system.ticket.PhysicsChunkTicketManager;
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
+import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import net.minecraft.CrashReport;
 import net.minecraft.CrashReportCategory;
 import net.minecraft.ReportedException;
@@ -71,6 +72,8 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
     @Unique private List<ServerSubLevel> worldengine$activeSnapshot = List.of();
     @Unique private boolean worldengine$snapshotDirty = true;
     @Unique private final WorldEngineBodyIndex worldengine$bodyIndex = new WorldEngineBodyIndex();
+    @Unique private final Quaterniond worldengine$rotationDifference = new Quaterniond();
+    @Unique private final Reference2ObjectOpenHashMap<ServerSubLevel, RigidBodyHandle> worldengine$tickHandles = new Reference2ObjectOpenHashMap<>();
 
     @Inject(method = "onSubLevelAdded", at = @At("TAIL"))
     private void worldengine$activateAdded(SubLevel subLevel, CallbackInfo ci) {
@@ -84,6 +87,7 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
             this.worldengine$nextActive.remove(serverSubLevel);
             this.worldengine$continuous.remove(serverSubLevel);
             this.worldengine$bodyIndex.remove(serverSubLevel);
+            this.worldengine$tickHandles.remove(serverSubLevel);
             this.worldengine$snapshotDirty = true;
         }
     }
@@ -127,16 +131,16 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
 
         for (this.currentSubstep = 0; this.currentSubstep < this.config.substepsPerTick; this.currentSubstep++) {
             double timeStep = 1.0 / 20.0 / this.config.substepsPerTick;
-            List<ServerSubLevel> physicsBodies = new ArrayList<>(this.worldengine$activeBodies());
+            List<ServerSubLevel> physicsBodies = this.worldengine$activeBodies();
 
             for (ServerSubLevel subLevel : physicsBodies) if (!subLevel.isRemoved()) subLevel.prePhysicsTickBegin();
             for (ServerSubLevel subLevel : physicsBodies) if (!subLevel.isRemoved()) subLevel.updateMergedMassData((float) this.getPartialPhysicsTick());
             for (ServerSubLevel subLevel : physicsBodies) if (!subLevel.isRemoved()) subLevel.prePhysicsTick(
-                    (SubLevelPhysicsSystem) (Object) this, this.getPhysicsHandle(subLevel), timeStep);
+                    (SubLevelPhysicsSystem) (Object) this, this.worldengine$tickHandle(subLevel), timeStep);
 
             SableEventPublishPlatform.INSTANCE.prePhysicsTick((SubLevelPhysicsSystem) (Object) this, timeStep);
             for (ServerSubLevel subLevel : physicsBodies) if (!subLevel.isRemoved()) subLevel.applyQueuedForces(
-                    (SubLevelPhysicsSystem) (Object) this, this.getPhysicsHandle(subLevel), timeStep);
+                    (SubLevelPhysicsSystem) (Object) this, this.worldengine$tickHandle(subLevel), timeStep);
 
             SubLevelPhysicsSystem.IN_PHYSICS_STEP = true;
             try {
@@ -154,6 +158,19 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
 
         this.pipeline.postPhysicsTicks();
         this.currentSubstep = this.config.substepsPerTick;
+    }
+
+    @Unique
+    private RigidBodyHandle worldengine$tickHandle(ServerSubLevel subLevel) {
+        // Sable's handle keeps immutable body/system references and resolves the current
+        // pipeline on every operation. Reuse only our internal handles; the public factory
+        // still returns a fresh handle. Body removal releases the cached reference.
+        RigidBodyHandle handle = this.worldengine$tickHandles.get(subLevel);
+        if (handle == null) {
+            handle = this.getPhysicsHandle(subLevel);
+            this.worldengine$tickHandles.put(subLevel, handle);
+        }
+        return handle;
     }
 
     @Unique
@@ -184,6 +201,11 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
     }
 
     @Override
+    public void worldengine$refreshQueryBounds(ServerSubLevel subLevel) {
+        if (!subLevel.isRemoved()) this.worldengine$bodyIndex.refreshExisting(subLevel);
+    }
+
+    @Override
     public List<ServerSubLevel> worldengine$activeBodies() {
         if (this.worldengine$snapshotDirty) {
             this.worldengine$activeSnapshot = List.copyOf(this.worldengine$active);
@@ -204,20 +226,22 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
     @Override
     public void worldengine$beginPoseSync() {
         this.worldengine$nextActive.clear();
-        this.worldengine$continuous.removeIf(SubLevel::isRemoved);
-        this.worldengine$nextActive.addAll(this.worldengine$continuous);
+        if (!this.worldengine$continuous.isEmpty()) {
+            this.worldengine$continuous.removeIf(SubLevel::isRemoved);
+            this.worldengine$nextActive.addAll(this.worldengine$continuous);
+        }
     }
 
     @Override
     public void worldengine$markActive(ServerSubLevel subLevel) {
         if (!subLevel.isRemoved()) {
-            this.worldengine$bodyIndex.update(subLevel);
             this.worldengine$nextActive.add(subLevel);
         }
     }
 
     @Override
     public void worldengine$endPoseSync() {
+        if (this.worldengine$active.isEmpty() && this.worldengine$nextActive.isEmpty()) return;
         if (!this.worldengine$active.equals(this.worldengine$nextActive)) {
             this.worldengine$active.clear();
             this.worldengine$active.addAll(this.worldengine$nextActive);
@@ -242,7 +266,7 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
         logicalPose.position().set(this.storagePose.position());
         logicalPose.orientation().set(this.storagePose.orientation());
         logicalPose.position().sub(subLevel.lastPose().position(), subLevel.latestLinearVelocity);
-        Quaterniond difference = logicalPose.orientation().difference(subLevel.lastPose().orientation(), new Quaterniond()).conjugate();
+        Quaterniond difference = logicalPose.orientation().difference(subLevel.lastPose().orientation(), this.worldengine$rotationDifference).conjugate();
         Vector3d angularVelocity = subLevel.latestAngularVelocity.set(difference.x, difference.y, difference.z);
         if (angularVelocity.lengthSquared() <= 1E-15) angularVelocity.mul(2.0 / difference.w);
         else angularVelocity.normalize().mul(2.0 * Math.safeAcos(difference.w));

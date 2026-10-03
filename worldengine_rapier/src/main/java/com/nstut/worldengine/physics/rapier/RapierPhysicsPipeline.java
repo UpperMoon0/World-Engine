@@ -5,6 +5,8 @@ import dev.ryanhcode.sable.api.physics.PhysicsPipeline;
 import com.nstut.worldengine.api.PhysicsRegion;
 import com.nstut.worldengine.api.WorldEnginePhysicsSystem;
 import com.nstut.worldengine.api.WorldEnginePoseSynchronizer;
+import com.nstut.worldengine.api.WorldEngineTerrainBodies;
+import com.nstut.worldengine.api.WorldEngineSolverConfiguration;
 import dev.ryanhcode.sable.api.physics.PhysicsPipelineBody;
 import dev.ryanhcode.sable.api.physics.constraint.*;
 import dev.ryanhcode.sable.api.physics.mass.MassTracker;
@@ -73,6 +75,8 @@ import org.joml.Vector3dc;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -82,7 +86,7 @@ import java.util.concurrent.Executors;
 /**
  * Implementation of {@link PhysicsPipeline} for the rust Rapier 3D physics engine.
  */
-public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSynchronizer {
+public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSynchronizer, WorldEngineTerrainBodies, WorldEngineSolverConfiguration {
     private record ScheduledRegion(long tick, long generation, RapierPhysicsRegion region) {}
     private record RegionStep(RapierPhysicsRegion region, int elapsedTicks) {}
 
@@ -110,6 +114,12 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     private final Set<RapierPhysicsRegion> activeRegions = new ReferenceOpenHashSet<>();
     private final Set<RapierPhysicsRegion> dirtyRegions = new ReferenceOpenHashSet<>();
     private final Set<RapierPhysicsRegion> steppedRegions = new ReferenceOpenHashSet<>();
+    private final Set<RapierPhysicsRegion> workRegionsScratch = new ReferenceOpenHashSet<>();
+    // Server-thread streaming is not reentrant. Each region keeps its own
+    // footprint storage; it never retains this reusable desired-set buffer.
+    private final LongSet terrainFootprintScratch = new LongOpenHashSet();
+    private final List<RegionStep> parallelRegionsScratch = new ArrayList<>();
+    private final ResidentBodyTracker<ServerSubLevel> residentBodies = new ResidentBodyTracker<>();
     private final PriorityQueue<ScheduledRegion> scheduledRegions = new PriorityQueue<>(Comparator.comparingLong(ScheduledRegion::tick));
     private final ExecutorService regionWorkers;
     private final double[] poseCache;
@@ -118,18 +128,35 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     private Vector3dc gravity;
     private double universalDrag;
     private long physicsTickCounter;
+    private long universeTickCounter;
     private long universeHandle;
+    private Settings solverSettings = Settings.from(new PhysicsConfigData());
+    private final Long2ObjectMap<Settings> appliedSolverSettings = new Long2ObjectOpenHashMap<>();
 
     public long getUniverseHandle() { return this.universeHandle; }
+
+    @Override
+    public List<ServerSubLevel> worldengine$ticketBodies(List<ServerSubLevel> activeBodies) {
+        return this.residentBodies.tickets(activeBodies);
+    }
+
+    void trackResidentBody(ServerSubLevel body, boolean resident) {
+        if (resident) this.residentBodies.add(body);
+        else this.residentBodies.remove(body);
+    }
 
     public Vector3dc getGravity() { return this.gravity; }
     public double getUniversalDrag() { return this.universalDrag; }
 
     void registerRegion(RapierPhysicsRegion region) {
+        // Regions can be created long after updateConfigFrom, including during
+        // materialization and interaction splits. Configure before their first step.
+        this.applySolverSettings(region.getSceneHandle());
         this.markRegionDirty(region);
     }
 
     void unregisterRegion(RapierPhysicsRegion region) {
+        this.appliedSolverSettings.remove(region.getSceneHandle());
         this.activeRegions.remove(region);
         this.dirtyRegions.remove(region);
         this.steppedRegions.remove(region);
@@ -257,7 +284,11 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         this.activeRegions.clear();
         this.dirtyRegions.clear();
         this.steppedRegions.clear();
+        this.workRegionsScratch.clear();
+        this.parallelRegionsScratch.clear();
+        this.residentBodies.clear();
         this.scheduledRegions.clear();
+        this.appliedSolverSettings.clear();
         this.terrainSectionRegions.clear();
         this.regionWorkers.shutdown();
         if (this.universeHandle != 0) {
@@ -272,7 +303,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     @Override
     public void prePhysicsTicks() {
         if (this.universeHandle == 0) return;
-        Rapier3D.tickUniverse(this.universeHandle, this.physicsTickCounter, 1.0 / 20.0,
+        // Universe deadlines and ballistic elapsed time use server ticks. The
+        // region counter below advances once per solver substep instead.
+        Rapier3D.tickUniverse(this.universeHandle, this.universeTickCounter++, 1.0 / 20.0,
                 this.gravity.x(), this.gravity.y(), this.gravity.z());
 
         int capacityEntries = this.materializationBuffer.capacity() / 32;
@@ -344,7 +377,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         this.physicsTickCounter++;
         this.updateContraptionPoses();
 
-        Set<RapierPhysicsRegion> workRegions = new ReferenceOpenHashSet<>(this.activeRegions);
+        Set<RapierPhysicsRegion> workRegions = this.workRegionsScratch;
+        workRegions.clear();
+        workRegions.addAll(this.activeRegions);
         workRegions.addAll(this.dirtyRegions);
         this.dirtyRegions.clear();
         while (!this.scheduledRegions.isEmpty() && this.scheduledRegions.peek().tick() <= this.physicsTickCounter) {
@@ -358,7 +393,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         }
 
         this.steppedRegions.clear();
-        List<RegionStep> parallelRegions = new ArrayList<>();
+        List<RegionStep> parallelRegions = this.parallelRegionsScratch;
+        parallelRegions.clear();
         for (RapierPhysicsRegion region : workRegions) {
             // Bounds and block changes are finalized on the server thread before
             // physics observers tick. Apply their terrain footprints before the
@@ -543,6 +579,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     }
 
     private ByteBuffer batchedPoseBuffer = null;
+    private final ByteBuffer collisionBuffer = ByteBuffer.allocateDirect(100 * 15 * Double.BYTES)
+            .order(ByteOrder.nativeOrder());
 
     @Override
     public void worldengine$syncActivePoses(ServerSubLevelContainer container, WorldEnginePhysicsSystem system) {
@@ -676,7 +714,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
                 minX, minY, minZ, maxX, maxY, maxZ));
     }
 
-    private TerrainFootprintTracker.Envelope terrainEnvelope(ServerSubLevel subLevel) {
+    private TerrainFootprintTracker.Envelope terrainEnvelope(ServerSubLevel subLevel,
+                                                             TerrainFootprintTracker.Envelope previous) {
         var bounds = subLevel.boundingBox();
         Vector3dc velocity = subLevel.latestLinearVelocity;
         double dx = velocity.x() * 2.0;
@@ -690,7 +729,7 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
                     bounds.minZ() + Math.min(0.0, dz) - 32.0,
                     bounds.maxX() + Math.max(0.0, dx) + 32.0,
                     bounds.maxY() + Math.max(0.0, dy) + 32.0,
-                    bounds.maxZ() + Math.max(0.0, dz) + 32.0);
+                    bounds.maxZ() + Math.max(0.0, dz) + 32.0, previous);
         }
 
         // A sublevel is registered before assembly/load populates its plot, so
@@ -698,43 +737,48 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         Vector3dc position = subLevel.logicalPose().position();
         return TerrainFootprintTracker.Envelope.fromWorldBounds(
                 position.x() - 32.0, position.y() - 32.0, position.z() - 32.0,
-                position.x() + 32.0, position.y() + 32.0, position.z() + 32.0);
+                position.x() + 32.0, position.y() + 32.0, position.z() + 32.0, previous);
     }
 
     void streamRegionTerrain(RapierPhysicsRegion region) {
         boolean changedNativeTerrain = false;
         for (int id : region.drainDirtyTerrainBodies()) {
-            LongSet desired = new LongOpenHashSet();
             ServerSubLevel subLevel = region.getSubLevel(id);
             if (subLevel != null && !subLevel.isRemoved()) {
-                TerrainFootprintTracker.Envelope envelope = this.terrainEnvelope(subLevel);
+                TerrainFootprintTracker.Envelope envelope = this.terrainEnvelope(subLevel,
+                        region.previousTerrainEnvelope(id));
                 // Pose updates mark the body as a cheap candidate every tick.
                 // Only allocate and diff the section set after its conservative
                 // swept section envelope actually changes.
                 if (!region.terrainFootprintNeedsRefresh(id, envelope)) continue;
+                LongSet desired = this.terrainFootprintScratch;
+                desired.clear();
                 this.addTerrainRange(desired, envelope);
+                region.replaceTerrainFootprint(id, desired);
+            } else {
+                region.replaceTerrainFootprint(id, it.unimi.dsi.fastutil.longs.LongSets.EMPTY_SET);
             }
-            region.replaceTerrainFootprint(id, desired);
         }
 
         // Non-sublevel objects are few and have no persistent body id. Keep
         // their footprint under one reserved owner while body footprints stay
         // fully incremental.
         if (region == this.spatialIndex.getDefaultRegion()) {
-            LongSet desired = new LongOpenHashSet();
+            this.activeBoxes.removeIf(box -> !box.isActive());
+            this.activeRopes.removeIf(rope -> !rope.isActive());
+            LongSet desired = this.activeContraptions.isEmpty() && this.activeBoxes.isEmpty() && this.activeRopes.isEmpty()
+                    ? it.unimi.dsi.fastutil.longs.LongSets.EMPTY_SET : new LongOpenHashSet();
             for (KinematicContraption contraption : this.activeContraptions.keySet()) {
                 Vector3dc pos = contraption.sable$getPosition();
                 this.addTerrainRange(desired, pos.x() - 32.0, pos.y() - 32.0, pos.z() - 32.0,
                         pos.x() + 32.0, pos.y() + 32.0, pos.z() + 32.0);
             }
             BoundingBox3d objectBounds = new BoundingBox3d();
-            this.activeBoxes.removeIf(box -> !box.isActive());
             for (BoxPhysicsObject box : this.activeBoxes) {
                 box.getBoundingBox(objectBounds);
                 this.addTerrainRange(desired, objectBounds.minX(), objectBounds.minY(), objectBounds.minZ(),
                         objectBounds.maxX(), objectBounds.maxY(), objectBounds.maxZ());
             }
-            this.activeRopes.removeIf(rope -> !rope.isActive());
             for (RopePhysicsObject rope : this.activeRopes) {
                 rope.getBoundingBox(objectBounds);
                 this.addTerrainRange(desired, objectBounds.minX(), objectBounds.minY(), objectBounds.minZ(),
@@ -1221,13 +1265,33 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
      */
     @Override
     public void updateConfigFrom(final PhysicsConfigData data) {
+        // Copy values even before init; callers may reuse and mutate the data object.
+        this.solverSettings = Settings.from(data);
         if (this.spatialIndex == null) return;
         for (PhysicsRegion region : this.spatialIndex.getRegions()) {
-            long sceneHandle = region.getSceneHandle();
-            Rapier3D.configFrequencyAndDamping(sceneHandle, data.contactSpringFrequency, data.contactSpringDampingRatio);
-            Rapier3D.configSolverIterations(sceneHandle, data.solverIterations, data.pgsIterations, data.stabilizationIterations);
-            Rapier3D.configMinIslandSize(sceneHandle, data.minDynamicBodiesPerIsland);
+            this.applySolverSettings(region.getSceneHandle());
         }
+    }
+
+    private void applySolverSettings(long sceneHandle) {
+        Settings settings = this.solverSettings;
+        Rapier3D.configFrequencyAndDamping(sceneHandle, settings.contactSpringFrequency(), settings.contactSpringDampingRatio());
+        Rapier3D.configSolverIterations(sceneHandle, settings.solverIterations(), settings.pgsIterations(), settings.stabilizationIterations());
+        Rapier3D.configMinIslandSize(sceneHandle, settings.minDynamicBodiesPerIsland());
+        this.appliedSolverSettings.put(sceneHandle, settings);
+    }
+
+    @Override
+    public Map<Long, Settings> worldengine$appliedSolverSettings() {
+        Map<Long, Settings> snapshot = new LinkedHashMap<>();
+        if (this.spatialIndex != null) {
+            for (PhysicsRegion region : this.spatialIndex.getRegions()) {
+                Settings settings = this.appliedSolverSettings.get(region.getSceneHandle());
+                if (settings == null) throw new IllegalStateException("Unconfigured physics region");
+                snapshot.put(region.getSceneHandle(), settings);
+            }
+        }
+        return Map.copyOf(snapshot);
     }
 
     /**
@@ -1300,6 +1364,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     private void processCollisionEffects() {
         this.recentCollisions.long2LongEntrySet().removeIf(entry -> this.level.getGameTime() - entry.getLongValue() > 2);
 
+        if (this.spatialIndex == null || this.steppedRegions.isEmpty()) return;
+
         final Vector3d localPointA = new Vector3d();
         final Vector3d localPointB = new Vector3d();
         final Vector3d localNormalA = new Vector3d();
@@ -1308,23 +1374,24 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         final Vector3d globalPointA = new Vector3d();
         final Vector3d globalPointB = new Vector3d();
 
-        if (this.spatialIndex == null) return;
         for (RapierPhysicsRegion region : List.copyOf(this.steppedRegions)) {
-            final double[] collisions = Rapier3D.clearCollisions(region.getSceneHandle());
+            final int collisionCount = Rapier3D.writeCollisions(region.getSceneHandle(), this.collisionBuffer);
+            if (collisionCount < 0 || collisionCount > 100) throw new IllegalStateException("Invalid collision buffer result");
+            if (collisionCount == 0) continue;
 
             final BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
             final BlockPos.MutableBlockPos cornerPos = new BlockPos.MutableBlockPos();
 
-            for (int i = 0; i < collisions.length / 15; i++) {
-                final int startIndex = i * 15;
-                final int idA = (int) collisions[startIndex];
-                final int idB = (int) collisions[startIndex + 1];
+            for (int i = 0; i < collisionCount; i++) {
+                final int startIndex = i * 15 * Double.BYTES;
+                final int idA = (int) this.collisionBuffer.getDouble(startIndex);
+                final int idB = (int) this.collisionBuffer.getDouble(startIndex + 8);
 
-                final double forceAmount = collisions[startIndex + 2];
-                localNormalA.set(collisions[startIndex + 3], collisions[startIndex + 4], collisions[startIndex + 5]);
-                localNormalB.set(collisions[startIndex + 6], collisions[startIndex + 7], collisions[startIndex + 8]);
-                localPointA.set(collisions[startIndex + 9], collisions[startIndex + 10], collisions[startIndex + 11]);
-                localPointB.set(collisions[startIndex + 12], collisions[startIndex + 13], collisions[startIndex + 14]);
+                final double forceAmount = this.collisionBuffer.getDouble(startIndex + 16);
+                localNormalA.set(this.collisionBuffer.getDouble(startIndex + 24), this.collisionBuffer.getDouble(startIndex + 32), this.collisionBuffer.getDouble(startIndex + 40));
+                localNormalB.set(this.collisionBuffer.getDouble(startIndex + 48), this.collisionBuffer.getDouble(startIndex + 56), this.collisionBuffer.getDouble(startIndex + 64));
+                localPointA.set(this.collisionBuffer.getDouble(startIndex + 72), this.collisionBuffer.getDouble(startIndex + 80), this.collisionBuffer.getDouble(startIndex + 88));
+                localPointB.set(this.collisionBuffer.getDouble(startIndex + 96), this.collisionBuffer.getDouble(startIndex + 104), this.collisionBuffer.getDouble(startIndex + 112));
 
                 final ServerSubLevel subLevelA = region.getSubLevel(idA);
                 final ServerSubLevel subLevelB = region.getSubLevel(idB);

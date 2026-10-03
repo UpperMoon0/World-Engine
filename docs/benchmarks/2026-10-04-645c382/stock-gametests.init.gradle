@@ -1,0 +1,13 @@
+gradle.afterProject { project ->
+    if (project.name == 'benchmark') {
+        // Remove development source registrations. Stock dependencies contain
+        // Sable's GameTests and native library; the World Engine addon is absent.
+        project.neoForge.mods.clear()
+        project.neoForge.runs.create('stockGameTest') {
+            type = 'gameTestServer'
+            gameDirectory = project.file('build/stock-gametest')
+            systemProperty 'neoforge.enabledGameTestNamespaces', 'sable'
+            jvmArgument '-Xmx1G'
+        }
+    }
+}

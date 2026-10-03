@@ -1,0 +1,271 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.5.0/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :buildSrc:extractPluginRequests UP-TO-DATE
+> Task :buildSrc:generatePluginAdapters UP-TO-DATE
+> Task :buildSrc:compileJava UP-TO-DATE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:compileGroovyPlugins UP-TO-DATE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources UP-TO-DATE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+> Task :common:createMinecraftArtifacts UP-TO-DATE
+> Task :worldengine_rapier:createMinecraftArtifacts UP-TO-DATE
+> Task :worldengine_rapier:processResources UP-TO-DATE
+> Task :worldengine_rapier:jarJar NO-SOURCE
+> Task :worldengine_rapier:processTestResources NO-SOURCE
+> Task :common:compileJava UP-TO-DATE
+> Task :common:processResources UP-TO-DATE
+> Task :common:classes UP-TO-DATE
+> Task :common:compileTestJava UP-TO-DATE
+> Task :common:processTestResources NO-SOURCE
+> Task :common:testClasses UP-TO-DATE
+> Task :common:test UP-TO-DATE
+> Task :neoforge:createMinecraftArtifacts UP-TO-DATE
+> Task :neoforge:compileJava UP-TO-DATE
+> Task :neoforge:processResources UP-TO-DATE
+> Task :neoforge:classes UP-TO-DATE
+> Task :neoforge:downloadAssets UP-TO-DATE
+> Task :neoforge:writeGameTestLegacyClasspath UP-TO-DATE
+> Task :neoforge:prepareGameTestRun UP-TO-DATE
+> Task :worldengine_rapier:compileJava
+> Task :worldengine_rapier:classes
+> Task :worldengine_rapier:jar
+> Task :worldengine_rapier:compileTestJava UP-TO-DATE
+> Task :worldengine_rapier:testClasses UP-TO-DATE
+> Task :worldengine_rapier:test
+
+> Task :neoforge:runGameTest
+WARN StatusConsoleListener Advanced terminal features are not available in this environment
+[18:59:30] [main/INFO] [cp.mo.mo.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeserverdev, --gameDir, ., --fml.fmlVersion, 4.0.42, --fml.mcVersion, 1.21.1, --fml.neoForgeVersion, 21.1.228, --fml.neoFormVersion, 20240808.144430]
+[18:59:30] [main/INFO] [cp.mo.mo.Launcher/MODLAUNCHER]: JVM identified as JetBrains s.r.o. OpenJDK 64-Bit Server VM 21.0.11+1-b1163.116
+[18:59:30] [main/INFO] [cp.mo.mo.Launcher/MODLAUNCHER]: ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.11 by JetBrains s.r.o.; OS Windows 10 arch amd64 version 10.0
+[18:59:30] [main/INFO] [ne.ne.fm.lo.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forgeserverdev
+[18:59:30] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/D:/DevCaches/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.15.2+mixin.0.8.7/2af2f021d8e02a0220dc27a7a72b4666d66d44ca/sponge-mixin-0.15.2+mixin.0.8.7.jar%2394!/ Service=ModLauncher Env=SERVER
+[18:59:31] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: library:Registrate.MC1._21._67. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\com.tterrag.registrate\Registrate\MC1.21-1.3.0+67\66ddc4cd56472fea1ea1a24182901e6c92a51c0a\Registrate-MC1.21-1.3.0+67.jar
+[18:59:31] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: veil. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\foundry.veil\veil-neoforge-1.21.1\4.3.2\3d4056e31dd8a06e35901c3b82210c3d471e1e48\veil-neoforge-1.21.1-4.3.2.jar
+[18:59:31] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: sablecompanion. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\dev.ryanhcode.sable-companion\sable-companion-common-1.21.1\1.6.0\370be7db705926176e05c0215ed676150c45daae\sable-companion-common-1.21.1-1.6.0.jar
+[18:59:31] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: flywheel. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\dev.engine-room.flywheel\flywheel-neoforge-1.21.1\1.0.6\a943872ad0bdd4458d818d8d7dc123fb250eb744\flywheel-neoforge-1.21.1-1.0.6.jar
+[18:59:31] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: library:sable_rapier. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\dev.ryanhcode.sable\sable-sable_rapier-1.21.1\2.0.5\8fd9e68113d35a8014669da7396c6ad892c4f143\sable-sable_rapier-1.21.1-2.0.5.jar
+[18:59:31] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: ponder. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\net.createmod.ponder\ponder-neoforge\1.0.82+mc1.21.1\b10a04f40b9d6d33c346fb38df33f10f7e51b713\ponder-neoforge-1.0.82+mc1.21.1.jar
+[18:59:31] [main/INFO] [ne.ne.fm.lo.mo.lo.JarInJarDependencyLocator/]: Found 4 dependencies adding them to mods collection
+[18:59:31] [main/INFO] [ne.ne.fm.lo.mo.ModDiscoverer/]: 
+     Mod List:
+		Name Version (Mod Id)
+
+		Create 6.0.10 (create)
+		Flywheel 1.0.6 (flywheel)
+		Minecraft 1.21.1 (minecraft)
+		NeoForge 21.1.228 (neoforge)
+		Ponder 1.0.82+mc1.21.1 (ponder)
+		Sable 2.0.5 (sable)
+		Sable Companion 1.6.0 (sablecompanion)
+		Veil 4.3.2 (veil)
+		World Engine 0.1.0 (worldengine)
+[18:59:32] [main/INFO] [mixin/]: Compatibility level set to JAVA_21
+[18:59:32] [main/INFO] [cp.mo.mo.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeserverdev' with arguments [--gameDir, .]
+[18:59:32] [main/WARN] [mixin/]: Reference map 'ponder.refmap.json' for ponder-common.mixins.json could not be read. If this is a development environment you can ignore this message
+[18:59:32] [main/INFO] [de.ry.sa.mi.AbstractSableMixinPlugin/]: Using Vanilla renderer mixins
+[18:59:32] [main/INFO] [de.ry.sa.mi.AbstractSableMixinPlugin/]: Using Vanilla renderer mixins
+[18:59:33] [main/WARN] [mixin/]: Error loading class: org/jetbrains/annotations/ApiStatus$ScheduledForRemoval (java.lang.ClassNotFoundException: org.jetbrains.annotations.ApiStatus$ScheduledForRemoval)
+[18:59:33] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.3).
+[18:59:41] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, location] and [teleport, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[18:59:41] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, location] and [teleport, targets] with inputs: [0.1 -0.5 .9, 0 0 0]
+[18:59:41] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, destination] and [teleport, targets] with inputs: [Player, 0123, @e, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[18:59:41] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, targets] and [teleport, destination] with inputs: [Player, 0123, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[18:59:41] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, targets, location] and [teleport, targets, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[18:59:41] [modloading-worker-0/INFO] [Veil/]: Veil is initializing.
+[18:59:41] [modloading-worker-0/INFO] [ne.ne.ne.co.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.228, for MC 1.21.1
+[18:59:41] [modloading-worker-0/INFO] [co.si.cr.Create/]: Create 6.0.10 initializing! Commit hash: ac0c444d9828da3453ae8cc65338e8de063286fb
+[18:59:42] [modloading-worker-0/INFO] [de.ry.sa.Sable/]: Sable loaded!
+[18:59:42] [modloading-worker-0/INFO] [World Engine/]: World Engine is replacing Sable's default physics pipeline with world-scale Rapier regions
+[18:59:44] [main/INFO] [mojang/YggdrasilAuthenticationService]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[18:59:45] [NeoForge Version Check/INFO] [ne.ne.fm.VersionChecker/]: [create] Starting version check at https://api.modrinth.com/updates/create/forge_updates.json?neoforge=only
+[18:59:45] [main/WARN] [minecraft/VanillaPackResourcesBuilder]: Assets URL 'union:/D:/Workspaces/Minecraft%20Projects/MC%20Mods/World-Engine-benchmark/neoforge/build/moddev/artifacts/neoforge-21.1.228.jar%23125!/assets/.mcassetsroot' uses unexpected schema
+[18:59:45] [main/WARN] [minecraft/VanillaPackResourcesBuilder]: Assets URL 'union:/D:/Workspaces/Minecraft%20Projects/MC%20Mods/World-Engine-benchmark/neoforge/build/moddev/artifacts/neoforge-21.1.228.jar%23125!/data/.mcassetsroot' uses unexpected schema
+[18:59:45] [main/INFO] [co.si.cr.Create/]: Created 157 recipes which will be injected into the game
+[18:59:45] [main/INFO] [co.si.cr.Create/]: Created 0 tags which will be injected into the game
+[18:59:45] [main/INFO] [ne.ne.ne.ga.GameTestHooks/]: Enabled Gametest Namespaces: [sable]
+[18:59:45] [NeoForge Version Check/INFO] [ne.ne.fm.VersionChecker/]: [create] Found status: OUTDATED Current: 6.0.10 Target: 6.0.10+mc1.21.1
+[18:59:46] [main/INFO] [minecraft/RecipeManager]: Loaded 2817 recipes
+[18:59:46] [main/INFO] [minecraft/AdvancementTree]: Loaded 2507 advancements
+[18:59:48] [Server thread/INFO] [de.ry.sa.Sable/]: Creating physics pipeline for ResourceKey[minecraft:dimension / minecraft:overworld] using RapierPhysicsPipelineProvider
+[18:59:48] [Server thread/INFO] [de.ry.sa.Sable/]: Using World Engine native directory D:\Workspaces\Minecraft Projects\MC Mods\World-Engine-benchmark\neoforge\build\gametest\.worldengine\natives
+[2026-10-01T11:59:48.306853100Z] [[32mINFO[0m] (worldengine_rapier) Rapier scene initialized
+[18:59:48] [Server thread/INFO] [de.ry.sa.Sable/]: Creating physics pipeline for ResourceKey[minecraft:dimension / minecraft:the_nether] using RapierPhysicsPipelineProvider
+[2026-10-01T11:59:48.652338900Z] [[32mINFO[0m] (worldengine_rapier) Rapier scene initialized
+[18:59:48] [Server thread/INFO] [de.ry.sa.Sable/]: Creating physics pipeline for ResourceKey[minecraft:dimension / minecraft:the_end] using RapierPhysicsPipelineProvider
+[2026-10-01T11:59:48.696310400Z] [[32mINFO[0m] (worldengine_rapier) Rapier scene initialized
+[18:59:48] [Server thread/INFO] [minecraft/MinecraftServer]: Preparing start region for dimension minecraft:overworld
+[18:59:48] [worldgen/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 2%
+[18:59:48] [Server thread/INFO] [minecraft/LoggerChunkProgressListener]: Time elapsed: 168 ms
+[18:59:48] [Server thread/INFO] [minecraft/GameTestServer]: Started game test server
+[18:59:48] [Server thread/INFO] [ne.ne.ne.se.pe.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler
+[18:59:49] [Server thread/INFO] [minecraft/GameTestServer]: 8 tests are now running at position -10964712, -59, 8117492!
+[18:59:49] [Server thread/ERROR] [minecraft/BlockEntity]: Failed to create block entity minecraft:comparator
+java.lang.IllegalStateException: Invalid block entity minecraft:comparator // net.minecraft.world.level.block.entity.ComparatorBlockEntity state at BlockPos{x=-2185509, y=-58, z=-8908941}, got Block{minecraft:air}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.block.entity.BlockEntity.validateBlockState(BlockEntity.java:52) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.block.entity.BlockEntity.<init>(BlockEntity.java:46) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.block.entity.ComparatorBlockEntity.<init>(ComparatorBlockEntity.java:12) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.block.entity.BlockEntityType.create(BlockEntityType.java:298) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,pl:accesstransformer:B,re:classloading,pl:accesstransformer:B,pl:mixin:APP:neoforge.mixins.json:BlockEntityTypeAccessor from mod neoforge,pl:mixin:A}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.block.entity.BlockEntity.lambda$loadStatic$4(BlockEntity.java:171) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,re:classloading}
+	at java.base/java.util.Optional.map(Optional.java:260) ~[?:?] {re:mixin}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.block.entity.BlockEntity.loadStatic(BlockEntity.java:169) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.chunk.storage.ChunkSerializer.lambda$postLoadChunk$10(ChunkSerializer.java:440) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.chunk.LevelChunk.runPostLoad(LevelChunk.java:480) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,re:classloading,pl:mixin:APP:sable.mixins.json:plot.LevelChunkMixin from mod sable,pl:mixin:APP:sable.mixins.json:plot.lighting.LevelChunkMixin from mod sable,pl:mixin:A}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.chunk.status.ChunkStatusTasks.lambda$full$2(ChunkStatusTasks.java:206) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1768) ~[?:?] {}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.level.ChunkTaskPriorityQueueSorter.lambda$message$1(ChunkTaskPriorityQueueSorter.java:50) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.util.thread.BlockableEventLoop.doRunTask(BlockableEventLoop.java:151) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,pl:accesstransformer:B,re:computing_frames,pl:accesstransformer:B,re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.level.ServerChunkCache$MainThreadExecutor.doRunTask(ServerChunkCache.java:565) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.util.thread.BlockableEventLoop.pollTask(BlockableEventLoop.java:122) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,pl:accesstransformer:B,re:computing_frames,pl:accesstransformer:B,re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.level.ServerChunkCache$MainThreadExecutor.pollTask(ServerChunkCache.java:574) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.util.thread.BlockableEventLoop.managedBlock(BlockableEventLoop.java:135) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,pl:accesstransformer:B,re:computing_frames,pl:accesstransformer:B,re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.level.ServerChunkCache$MainThreadExecutor.managedBlock(ServerChunkCache.java:539) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.level.ServerChunkCache.getChunk(ServerChunkCache.java:159) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,pl:accesstransformer:B,re:classloading,pl:accesstransformer:B,pl:mixin:APP:sable.mixins.json:level_accelerator.ServerChunkCacheAccessor from mod sable,pl:mixin:APP:sable.mixins.json:plot.ServerChunkCacheMixin from mod sable,pl:mixin:A}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.Level.getChunk(Level.java:208) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,pl:accesstransformer:B,re:computing_frames,pl:accesstransformer:B,re:classloading,pl:accesstransformer:B,pl:mixin:APP:worldengine.mixins.json:LevelRainingCacheMixin from mod worldengine,pl:mixin:APP:sable.mixins.json:entity.entity_sublevel_collision.LevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:world_border.LevelMixin from mod sable,pl:mixin:APP:sable-neoforge.mixins.json:compatibility.create.super_glue.LevelAccessor from mod sable,pl:mixin:APP:worldengine.mixins.json:LevelTimeStateMixin from mod worldengine,pl:mixin:A}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.LevelReader.getChunk(LevelReader.java:137) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,re:computing_frames,re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.Level.getChunk(Level.java:202) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,pl:accesstransformer:B,re:computing_frames,pl:accesstransformer:B,re:classloading,pl:accesstransformer:B,pl:mixin:APP:worldengine.mixins.json:LevelRainingCacheMixin from mod worldengine,pl:mixin:APP:sable.mixins.json:entity.entity_sublevel_collision.LevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:world_border.LevelMixin from mod sable,pl:mixin:APP:sable-neoforge.mixins.json:compatibility.create.super_glue.LevelAccessor from mod sable,pl:mixin:APP:worldengine.mixins.json:LevelTimeStateMixin from mod worldengine,pl:mixin:A}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.level.ServerLevel.setChunkForced(ServerLevel.java:1423) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,pl:accesstransformer:B,re:classloading,pl:accesstransformer:B,pl:mixin:APP:veil.network.mixins.json:NetworkServerLevelMixin from mod veil,pl:mixin:APP:create.mixins.json:accessor.ServerLevelAccessor from mod create,pl:mixin:APP:sable.mixins.json:block_decal_render.ServerLevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:entity.entity_aabb_lookup.ServerLevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:entity.entity_kicking.ServerLevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:entity.server_entities_tick.ServerLevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:explosion.ServerLevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:particle.ServerLevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:physics.ServerLevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:plot.ServerLevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:plot.container.ServerLevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:stop_lightning.ServerLevelMixin from mod sable,pl:mixin:APP:sable.mixins.json:water_occlusion.ServerLevelMixin from mod sable,pl:mixin:A}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.StructureUtils.lambda$forceLoadChunks$3(StructureUtils.java:168) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,re:classloading,pl:mixin:APP:sable.mixins.json:game_test.StructureUtilsMixin from mod sable,pl:mixin:A}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.world.level.ChunkPos$1.tryAdvance(ChunkPos.java:214) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at java.base/java.util.Spliterator.forEachRemaining(Spliterator.java:332) ~[?:?] {}
+	at java.base/java.util.stream.ReferencePipeline$Head.forEach(ReferencePipeline.java:762) ~[?:?] {}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.StructureUtils.forceLoadChunks(StructureUtils.java:168) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,re:classloading,pl:mixin:APP:sable.mixins.json:game_test.StructureUtilsMixin from mod sable,pl:mixin:A}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.StructureUtils.prepareTestStructure(StructureUtils.java:126) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,re:classloading,pl:mixin:APP:sable.mixins.json:game_test.StructureUtilsMixin from mod sable,pl:mixin:A}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.GameTestInfo.prepareTestStructure(GameTestInfo.java:265) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,pl:accesstransformer:B,re:classloading,pl:accesstransformer:B,pl:mixin:APP:sable.mixins.json:game_test.GameTestInfoMixin from mod sable,pl:mixin:A}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.StructureGridSpawner.spawnStructure(StructureGridSpawner.java:48) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.GameTestRunner.spawn(GameTestRunner.java:163) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197) ~[?:?] {}
+	at java.base/java.util.AbstractList$RandomAccessSpliterator.forEachRemaining(AbstractList.java:722) ~[?:?] {}
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:509) ~[?:?] {}
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499) ~[?:?] {}
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:575) ~[?:?] {}
+	at java.base/java.util.stream.AbstractPipeline.evaluateToArrayNode(AbstractPipeline.java:260) ~[?:?] {}
+	at java.base/java.util.stream.ReferencePipeline.toArray(ReferencePipeline.java:616) ~[?:?] {}
+	at java.base/java.util.stream.ReferencePipeline.toArray(ReferencePipeline.java:622) ~[?:?] {}
+	at java.base/java.util.stream.ReferencePipeline.toList(ReferencePipeline.java:627) ~[?:?] {}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.GameTestRunner.createStructuresForBatch(GameTestRunner.java:158) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.GameTestRunner.runBatch(GameTestRunner.java:90) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.GameTestRunner.start(GameTestRunner.java:63) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.GameTestServer.startTests(GameTestServer.java:252) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.gametest.framework.GameTestServer.tickServer(GameTestServer.java:174) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.runServer(MinecraftServer.java:713) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,pl:accesstransformer:B,re:classloading,pl:accesstransformer:B,pl:mixin:APP:veil.network.mixins.json:NetworkMinecraftServerMixin from mod veil,pl:mixin:APP:veil.scheduler.mixins.json:MinecraftServerMixin from mod veil,pl:mixin:APP:ponder-common.mixins.json:accessor.MinecraftServerAccessor from mod ponder,pl:mixin:APP:sable.mixins.json:udp.MinecraftServerMixin from mod sable,pl:mixin:A}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.lambda$spin$2(MinecraftServer.java:267) ~[neoforge-21.1.228.jar%23125!/:?] {re:mixin,pl:accesstransformer:B,re:classloading,pl:accesstransformer:B,pl:mixin:APP:veil.network.mixins.json:NetworkMinecraftServerMixin from mod veil,pl:mixin:APP:veil.scheduler.mixins.json:MinecraftServerMixin from mod veil,pl:mixin:APP:ponder-common.mixins.json:accessor.MinecraftServerAccessor from mod ponder,pl:mixin:APP:sable.mixins.json:udp.MinecraftServerMixin from mod sable,pl:mixin:A}
+	at java.base/java.lang.Thread.run(Thread.java:1583) [?:?] {re:mixin}
+[18:59:49] [Server thread/WARN] [minecraft/BlockEntity]: Skipping BlockEntity with id minecraft:comparator
+[18:59:49] [Server thread/INFO] [minecraft/GameTestRunner]: Running test batch 'defaultBatch:0' (8 tests)...
+[2026-10-01T11:59:49.711732100Z] [[32mINFO[0m] (worldengine_rapier) Rapier scene initialized
+[18:59:49] [Server thread/INFO] [minecraft/GameTestServer]: [        ]
+[2026-10-01T11:59:50.114303900Z] [[32mINFO[0m] (worldengine_rapier) Rapier scene initialized
+[18:59:50] [Server thread/INFO] [minecraft/GameTestServer]: [+__+____]
+[18:59:50] [Server thread/WARN] [minecraft/LogTestReporter]: (optional) physicstest.testgravity failed at -10964702, -60, 8117492. Sublevel position didn't follow gravity. Delta: 0.034374237060546875 at -10964700,-48,8117494 (relative: 2,12,2) (t=20)
+[18:59:50] [Server thread/INFO] [minecraft/GameTestServer]: [+x++____]
+[18:59:50] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+_]
+[18:59:50] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+_]
+[18:59:50] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:50] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:50] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+_]
+[18:59:50] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:50] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+_]
+[18:59:50] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:50] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+_]
+[18:59:50] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+_]
+[18:59:50] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:50] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:50] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/WARN] [minecraft/LevelChunk]: Block entity create:pulse_extender @ BlockPos{x=-10964652, y=-57, z=8117494} state Block{minecraft:air} invalid for ticking:
+[18:59:51] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/WARN] [minecraft/LevelChunk]: Block entity create:pulse_repeater @ BlockPos{x=-10964652, y=-57, z=8117494} state Block{minecraft:air} invalid for ticking:
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/WARN] [minecraft/LevelChunk]: Block entity create:cart_assembler @ BlockPos{x=-10964652, y=-57, z=8117494} state Block{minecraft:air} invalid for ticking:
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:51] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:52] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:52] [Server thread/WARN] [minecraft/LevelChunk]: Block entity create:pulse_timer @ BlockPos{x=-10964652, y=-57, z=8117494} state Block{minecraft:air} invalid for ticking:
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:52] [Server thread/WARN] [minecraft/LevelChunk]: Block entity create:analog_lever @ BlockPos{x=-10964652, y=-57, z=8117494} state Block{minecraft:air} invalid for ticking:
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:52] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:52] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20515848}
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_++]
+[18:59:52] [Server thread/INFO] [de.ry.sa.Sable/]: Skipped blocks:
+create:gantry_carriage
+create:factory_gauge
+create:train_door
+create:framed_glass_door
+create:belt
+create:brass_tunnel
+create:crushing_wheel_controller
+create:copper_door
+create:brass_door
+create:andesite_tunnel
+create:redstone_link
+create:large_water_wheel
+create:andesite_door
+[18:59:52] [Server thread/WARN] [minecraft/LogTestReporter]: (optional) assemblytest.testallblocks failed at -10964654, -60, 8117492. 2 blocks failed.
+create:millstone
+create:item_drain
+[18:59:52] [Server thread/INFO] [minecraft/GameTestRunner]: Starting re-run of tests: physicstest.testsnag
+[18:59:52] [Server thread/INFO] [minecraft/GameTestRunner]: Running test batch 'defaultBatch:0' (1 tests)...
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++x++]
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: ========= 8 GAME TESTS COMPLETE IN 3.301 s ======================
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: All 8 required tests passed :)
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: 2 optional tests failed
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]:    - physicstest.testgravity
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]:    - assemblytest.testallblocks
+[18:59:52] [Server thread/INFO] [minecraft/GameTestServer]: ====================================================
+[18:59:52] [Server thread/INFO] [minecraft/MinecraftServer]: Stopping server
+[18:59:52] [Server thread/INFO] [minecraft/MinecraftServer]: Saving players
+[18:59:52] [Server thread/INFO] [minecraft/MinecraftServer]: Saving worlds
+[18:59:52] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[Test Level]'/minecraft:overworld
+[18:59:52] [Server thread/INFO] [de.ry.sa.Sable/]: Saving sub-levels for level 'ServerLevel[Test Level]'/minecraft:overworld
+[18:59:53] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[Test Level]'/minecraft:the_nether
+[18:59:53] [Server thread/INFO] [de.ry.sa.Sable/]: Saving sub-levels for level 'ServerLevel[Test Level]'/minecraft:the_nether
+[18:59:53] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[Test Level]'/minecraft:the_end
+[18:59:53] [Server thread/INFO] [de.ry.sa.Sable/]: Saving sub-levels for level 'ServerLevel[Test Level]'/minecraft:the_end
+[18:59:53] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (world): All chunks are saved
+[18:59:53] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[18:59:53] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[18:59:53] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+[18:59:53] [Server thread/INFO] [minecraft/GameTestServer]: Game test server shutting down
+
+[Incubating] Problems report is available at: file:///D:/Workspaces/Minecraft%20Projects/MC%20Mods/World-Engine-benchmark/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.5.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 39s
+25 actionable tasks: 4 executed, 21 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.0/userguide/configuration_cache_enabling.html

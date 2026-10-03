@@ -2,7 +2,7 @@
 
 World Engine is a performance addon for [Sable](https://www.curseforge.com/minecraft/mc-mods/sable) on Minecraft 1.21.1. It is designed for worlds with many physics bodies and for large moving structures such as ships, stations, and terrain-scale contraptions.
 
-It preserves Sable's configured physics substeps and collision behavior. Performance comes from doing less unnecessary work—not from lowering simulation quality.
+It keeps Sable's configured physics substeps and solver settings. Its optimizations reduce repeated indexing, terrain streaming, and collision work.
 
 ## What it improves
 
@@ -15,6 +15,27 @@ It preserves Sable's configured physics substeps and collision behavior. Perform
 - Sable's configured physics substeps remain in effect.
 
 The full technical migration is documented in [MIGRATION.md](MIGRATION.md).
+
+## Benchmark: 0.1.1 vs stock Sable
+
+Five paired trials per workload on Minecraft 1.21.1 NeoForge used 50 fresh server
+processes, each with 300 warmup and 300 measured ticks. Total process CPU fell
+11–40% and p95 tick latency fell 30–60% across the five fixtures. Server-thread
+Java allocation fell 2–35% in body workloads and was unchanged when idle.
+
+![World Engine 0.1.1 benchmark against stock Sable](docs/benchmarks/2026-10-04-c38bf71/world-engine-0.1.1.png)
+
+Median tick latency fell 23–63%. Server-thread CPU fell 3–57%, including 2.6%
+for active bodies. All six reported median measures improved across the five
+fixtures except idle allocation, which was unchanged. These results measure
+revision `c38bf71`. Each workload's five pairs share one CI runner; workloads run
+on separate runners and are compared individually. They do not establish that
+every individual tick or every possible workload is faster.
+
+See the [complete results and raw evidence](docs/benchmarks/2026-10-04-c38bf71/README.md),
+[successful comparison run](https://github.com/UpperMoon0/World-Engine/actions/runs/37157084961),
+and [benchmark protocol](BENCHMARKS.md). These dedicated-server fixtures do not
+measure client FPS, retained RAM, arbitrary large ships or every addon.
 
 ## Requirements
 
@@ -50,6 +71,9 @@ The normal build packages the checked-in native binaries. Rebuilding every relea
 ```
 
 Correctness tests run as part of `build`. Query crossover benchmarks are opt-in through `:common:jmh`.
+
+For the real dedicated-server comparison against stock Sable, see [BENCHMARKS.md](BENCHMARKS.md).
+Native and query microbenchmarks alone do not establish an in-game speedup.
 
 ## Releases and support
 

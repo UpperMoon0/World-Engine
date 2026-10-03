@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-01",
+  "host": "sunday-desktop-root",
+  "sourceRustTree": "cc2ba914b546623ed177bb0e196270a7d9ae3851",
+  "sourceRustDiffFromCI": "none",
+  "ciBuildCommit": "da52395",
+  "staleRepackCommit": "db3511e",
+  "restoredBundleGitBlob": "d156a68dd981e27229abb1dd3b78c6ffc60e13f5",
+  "windowsX8664": {
+    "staleSha256": "d81529c808cb784e2de50fb175e8c60ac0aa07bfbdbfc5a12abcdfab18019182",
+    "restoredCiSha256": "46f1e8ce5ec2b9d3dedc90a53d19521ed8d13d8debe3827ff7662c79c5718fd9",
+    "cleanLocalSourceBuildSha256": "2d1584c570717dc904653817e399183c0e07cdff9b72ce56e46f65399ecf4948"
+  },
+  "otherFiveNativeEntries": "identical SHA-256 before/after",
+  "nativeEntryHashEvidence": "ARCHIVE build\\original-native-bundle.l4z\r\nworldengine_rapier_aarch64_linux.so 1769680 5abeee5d5694d3b305d3c5fce8f850124051836bf863f4ec3aa99078152dcedf\r\nworldengine_rapier_aarch64_macos.dylib 4470288 42efb8b0ace55681b42b2acbf302212f77caef102f278561109d8a70ae47eee1\r\nworldengine_rapier_aarch64_windows.dll 1547264 c12d60ebce48e60fd04ae79d43f260432662bcb5eb9f227990755f7619f0eab1\r\nworldengine_rapier_x86_64_linux.so 2093248 a4685d2cfff09d8fdcc9eda85a419d413361d72debdfbd26d77e595bafda7c5c\r\nworldengine_rapier_x86_64_macos.dylib 4913320 fd58648849b9454f3c6235d08360bc086e6491fdaa1520a85128ceee3aa0e92d\r\nworldengine_rapier_x86_64_windows.dll 1913344 d81529c808cb784e2de50fb175e8c60ac0aa07bfbdbfc5a12abcdfab18019182\r\nARCHIVE build\\automated-native-bundle.l4z\r\nworldengine_rapier_aarch64_linux.so 1769680 5abeee5d5694d3b305d3c5fce8f850124051836bf863f4ec3aa99078152dcedf\r\nworldengine_rapier_aarch64_macos.dylib 4470288 42efb8b0ace55681b42b2acbf302212f77caef102f278561109d8a70ae47eee1\r\nworldengine_rapier_aarch64_windows.dll 1547264 c12d60ebce48e60fd04ae79d43f260432662bcb5eb9f227990755f7619f0eab1\r\nworldengine_rapier_x86_64_linux.so 2093248 a4685d2cfff09d8fdcc9eda85a419d413361d72debdfbd26d77e595bafda7c5c\r\nworldengine_rapier_x86_64_macos.dylib 4913320 fd58648849b9454f3c6235d08360bc086e6491fdaa1520a85128ceee3aa0e92d\r\nworldengine_rapier_x86_64_windows.dll 1903104 46f1e8ce5ec2b9d3dedc90a53d19521ed8d13d8debe3827ff7662c79c5718fd9\r\n\r\nAlgorithm       Hash                                                                   Path                            \r\n---------       ----                                                                   ----                            \r\nSHA256          2D1584C570717DC904653817E399183C0E07CDFF9B72CE56E46F65399ECF4948       D:\\Workspaces\\Minecraft Proje...\r\n\r\n\r\n",
+  "validation": {
+    "javaUnitTests": 14,
+    "javaUnitFailures": 0,
+    "benchmarkEvidenceTests": 8,
+    "benchmarkEvidenceFailures": 0,
+    "worldEngineRequiredGameTests": [
+      "assembledBodyKeepsTerrainSupport (160 ticks)",
+      "ballisticGravityUsesServerTickTime (50 ticks)",
+      "worldScaleQueryUsesIndexedBodies"
+    ],
+    "requiredGameTestFailures": 0,
+    "optionalUpstreamFailures": [
+      "physicstest.testgravity: pose delta at 20 ticks (abstract integration updates are scheduled)",
+      "assemblytest.testallblocks: create:millstone and create:item_drain"
+    ],
+    "oldClockNegativeControl": {
+      "requiredFailingTest": "ballisticGravityUsesServerTickTime",
+      "measuredFall": 92.45499914512038
+    },
+    "staleNativeNegativeControl": {
+      "requiredFailingTest": "assembledBodyKeepsTerrainSupport"
+    },
+    "logs": [
+      "tests/final-tests.log",
+      "tests/old-clock-negative-control.log",
+      "tests/stale-windows-bundle-tests.log",
+      "tests/clean-source-native-tests.log",
+      "tests/restored-bundle-tests.log"
+    ]
+  }
+}

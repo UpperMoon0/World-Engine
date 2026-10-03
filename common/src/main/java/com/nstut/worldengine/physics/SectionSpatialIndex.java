@@ -43,6 +43,8 @@ public final class SectionSpatialIndex<T> {
     private final Reference2ObjectOpenHashMap<T, LongOpenHashSet> bodySections =
             new Reference2ObjectOpenHashMap<>();
     private final ReferenceOpenHashSet<T> largeBodies = new ReferenceOpenHashSet<>();
+    private record Range(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) { }
+    private final Reference2ObjectOpenHashMap<T, Range> bodyRanges = new Reference2ObjectOpenHashMap<>();
     private final Reference2LongOpenHashMap<T> resultStamps = new Reference2LongOpenHashMap<>();
     private final Packer packer;
     private long stampGeneration = 0L;
@@ -54,6 +56,10 @@ public final class SectionSpatialIndex<T> {
 
     public boolean isEmpty() {
         return this.bodySections.isEmpty() && this.largeBodies.isEmpty();
+    }
+
+    public boolean contains(T body) {
+        return this.bodySections.containsKey(body) || this.largeBodies.contains(body);
     }
 
     public int size() {
@@ -77,6 +83,7 @@ public final class SectionSpatialIndex<T> {
      * The caller must not reuse the instance afterwards.
      */
     public void insert(T body, LongOpenHashSet sectionsOccupied) {
+        this.bodyRanges.remove(body);
         this.largeBodies.remove(body);
         LongOpenHashSet previous = this.bodySections.put(body, sectionsOccupied);
         if (previous != null) {
@@ -87,11 +94,26 @@ public final class SectionSpatialIndex<T> {
         }
     }
 
+    /** Reuses memberships while the inclusive section range stays unchanged.
+     * The caller must bound section volume; exact body bounds remain the
+     * query filter's responsibility. */
+    public void insertRange(T body, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        Range old = this.bodyRanges.get(body);
+        if (old != null && old.minX == minX && old.minY == minY && old.minZ == minZ
+                && old.maxX == maxX && old.maxY == maxY && old.maxZ == maxZ) return;
+        LongOpenHashSet occupied = new LongOpenHashSet();
+        for (long x = minX; x <= maxX; x++) for (long z = minZ; z <= maxZ; z++)
+            for (long y = minY; y <= maxY; y++) occupied.add(this.packer.pack((int) x, (int) y, (int) z));
+        this.insert(body, occupied);
+        this.bodyRanges.put(body, new Range(minX, minY, minZ, maxX, maxY, maxZ));
+    }
+
     /**
      * Tracks a body outside the section map. Large bodies are tested exactly on
      * every query, avoiding unbounded section memberships for world-scale AABBs.
      */
     public void insertLarge(T body) {
+        this.bodyRanges.remove(body);
         LongOpenHashSet previous = this.bodySections.remove(body);
         if (previous != null) {
             for (long section : previous) this.removeFromSection(section, body);
@@ -101,6 +123,7 @@ public final class SectionSpatialIndex<T> {
     }
 
     public void remove(T body) {
+        this.bodyRanges.remove(body);
         this.largeBodies.remove(body);
         LongOpenHashSet previous = this.bodySections.remove(body);
         this.resultStamps.remove(body);

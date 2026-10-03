@@ -1,0 +1,276 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.5.0/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :buildSrc:extractPluginRequests UP-TO-DATE
+> Task :buildSrc:generatePluginAdapters UP-TO-DATE
+> Task :buildSrc:compileJava UP-TO-DATE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:compileGroovyPlugins UP-TO-DATE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources UP-TO-DATE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+> Task :worldengine_rapier:createMinecraftArtifacts UP-TO-DATE
+> Task :common:createMinecraftArtifacts UP-TO-DATE
+> Task :worldengine_rapier:processResources UP-TO-DATE
+> Task :worldengine_rapier:jarJar NO-SOURCE
+> Task :worldengine_rapier:processTestResources NO-SOURCE
+> Task :common:compileJava UP-TO-DATE
+> Task :neoforge:createMinecraftArtifacts UP-TO-DATE
+> Task :worldengine_rapier:compileJava UP-TO-DATE
+> Task :worldengine_rapier:classes UP-TO-DATE
+> Task :worldengine_rapier:jar UP-TO-DATE
+> Task :common:processResources
+> Task :common:classes
+> Task :worldengine_rapier:compileTestJava
+> Task :worldengine_rapier:testClasses
+> Task :common:compileTestJava
+> Task :common:processTestResources NO-SOURCE
+> Task :common:testClasses
+> Task :worldengine_rapier:test
+> Task :neoforge:compileJava
+> Task :neoforge:processResources UP-TO-DATE
+> Task :neoforge:classes
+> Task :common:test
+
+> Task :neoforge:downloadAssets
+Loaded 145 artifacts from D:\Workspaces\Minecraft Projects\MC Mods\World-Engine-benchmark\neoforge\build\tmp\downloadAssets\nfrt_artifact_manifest.properties
+Downloading asset index 17
+Using Minecraft asset root: D:\DevCaches\.gradle\caches\neoformruntime\assets
+  DL    https://piston-meta.mojang.com/v1/packages/b39bbb1f62212e6725227460974d158b2f7e685c/17.json
+
+> Task :neoforge:writeGameTestLegacyClasspath
+> Task :neoforge:prepareGameTestRun
+
+> Task :neoforge:runGameTest
+WARN StatusConsoleListener Advanced terminal features are not available in this environment
+[18:47:22] [main/INFO] [cp.mo.mo.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeserverdev, --gameDir, ., --fml.fmlVersion, 4.0.42, --fml.mcVersion, 1.21.1, --fml.neoForgeVersion, 21.1.228, --fml.neoFormVersion, 20240808.144430]
+[18:47:22] [main/INFO] [cp.mo.mo.Launcher/MODLAUNCHER]: JVM identified as JetBrains s.r.o. OpenJDK 64-Bit Server VM 21.0.11+1-b1163.116
+[18:47:22] [main/INFO] [cp.mo.mo.Launcher/MODLAUNCHER]: ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.11 by JetBrains s.r.o.; OS Windows 10 arch amd64 version 10.0
+[18:47:22] [main/INFO] [ne.ne.fm.lo.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forgeserverdev
+[18:47:22] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/D:/DevCaches/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.15.2+mixin.0.8.7/2af2f021d8e02a0220dc27a7a72b4666d66d44ca/sponge-mixin-0.15.2+mixin.0.8.7.jar%2394!/ Service=ModLauncher Env=SERVER
+[18:47:23] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: library:Registrate.MC1._21._67. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\com.tterrag.registrate\Registrate\MC1.21-1.3.0+67\66ddc4cd56472fea1ea1a24182901e6c92a51c0a\Registrate-MC1.21-1.3.0+67.jar
+[18:47:23] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: veil. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\foundry.veil\veil-neoforge-1.21.1\4.3.2\3d4056e31dd8a06e35901c3b82210c3d471e1e48\veil-neoforge-1.21.1-4.3.2.jar
+[18:47:23] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: sablecompanion. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\dev.ryanhcode.sable-companion\sable-companion-common-1.21.1\1.6.0\370be7db705926176e05c0215ed676150c45daae\sable-companion-common-1.21.1-1.6.0.jar
+[18:47:23] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: flywheel. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\dev.engine-room.flywheel\flywheel-neoforge-1.21.1\1.0.6\a943872ad0bdd4458d818d8d7dc123fb250eb744\flywheel-neoforge-1.21.1-1.0.6.jar
+[18:47:23] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: library:sable_rapier. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\dev.ryanhcode.sable\sable-sable_rapier-1.21.1\2.0.5\8fd9e68113d35a8014669da7396c6ad892c4f143\sable-sable_rapier-1.21.1-2.0.5.jar
+[18:47:23] [main/WARN] [ne.ne.ja.se.JarSelector/]: Attempted to select a dependency jar for JarJar which was passed in as source: ponder. Using Mod File: D:\DevCaches\.gradle\caches\modules-2\files-2.1\net.createmod.ponder\ponder-neoforge\1.0.82+mc1.21.1\b10a04f40b9d6d33c346fb38df33f10f7e51b713\ponder-neoforge-1.0.82+mc1.21.1.jar
+[18:47:23] [main/INFO] [ne.ne.fm.lo.mo.lo.JarInJarDependencyLocator/]: Found 4 dependencies adding them to mods collection
+[18:47:23] [main/INFO] [ne.ne.fm.lo.mo.ModDiscoverer/]: 
+     Mod List:
+		Name Version (Mod Id)
+
+		Create 6.0.10 (create)
+		Flywheel 1.0.6 (flywheel)
+		Minecraft 1.21.1 (minecraft)
+		NeoForge 21.1.228 (neoforge)
+		Ponder 1.0.82+mc1.21.1 (ponder)
+		Sable 2.0.5 (sable)
+		Sable Companion 1.6.0 (sablecompanion)
+		Veil 4.3.2 (veil)
+		World Engine 0.1.0 (worldengine)
+[18:47:23] [main/INFO] [mixin/]: Compatibility level set to JAVA_21
+[18:47:24] [main/INFO] [cp.mo.mo.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeserverdev' with arguments [--gameDir, .]
+[18:47:24] [main/WARN] [mixin/]: Reference map 'ponder.refmap.json' for ponder-common.mixins.json could not be read. If this is a development environment you can ignore this message
+[18:47:24] [main/INFO] [de.ry.sa.mi.AbstractSableMixinPlugin/]: Using Vanilla renderer mixins
+[18:47:24] [main/INFO] [de.ry.sa.mi.AbstractSableMixinPlugin/]: Using Vanilla renderer mixins
+[18:47:25] [main/WARN] [mixin/]: Error loading class: org/jetbrains/annotations/ApiStatus$ScheduledForRemoval (java.lang.ClassNotFoundException: org.jetbrains.annotations.ApiStatus$ScheduledForRemoval)
+[18:47:25] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.3).
+[18:47:33] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, location] and [teleport, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[18:47:33] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, location] and [teleport, targets] with inputs: [0.1 -0.5 .9, 0 0 0]
+[18:47:33] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, destination] and [teleport, targets] with inputs: [Player, 0123, @e, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[18:47:33] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, targets] and [teleport, destination] with inputs: [Player, 0123, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[18:47:33] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, targets, location] and [teleport, targets, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[18:47:33] [modloading-worker-0/INFO] [Veil/]: Veil is initializing.
+[18:47:33] [modloading-worker-0/INFO] [ne.ne.ne.co.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.228, for MC 1.21.1
+[18:47:33] [modloading-worker-0/INFO] [co.si.cr.Create/]: Create 6.0.10 initializing! Commit hash: ac0c444d9828da3453ae8cc65338e8de063286fb
+[18:47:34] [modloading-worker-0/INFO] [de.ry.sa.Sable/]: Sable loaded!
+[18:47:34] [modloading-worker-0/INFO] [World Engine/]: World Engine is replacing Sable's default physics pipeline with world-scale Rapier regions
+[18:47:36] [main/ERROR] [minecraft/Settings]: Failed to load properties from file: server.properties
+java.nio.file.NoSuchFileException: server.properties
+	at java.base/sun.nio.fs.WindowsException.translateToIOException(WindowsException.java:87) ~[?:?] {}
+	at java.base/sun.nio.fs.WindowsException.rethrowAsIOException(WindowsException.java:106) ~[?:?] {}
+	at java.base/sun.nio.fs.WindowsException.rethrowAsIOException(WindowsException.java:112) ~[?:?] {}
+	at java.base/sun.nio.fs.WindowsFileSystemProvider.newByteChannel(WindowsFileSystemProvider.java:234) ~[?:?] {}
+	at java.base/java.nio.file.Files.newByteChannel(Files.java:380) ~[?:?] {}
+	at java.base/java.nio.file.Files.newByteChannel(Files.java:432) ~[?:?] {}
+	at java.base/java.nio.file.spi.FileSystemProvider.newInputStream(FileSystemProvider.java:420) ~[?:?] {}
+	at java.base/java.nio.file.Files.newInputStream(Files.java:160) ~[?:?] {}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.dedicated.Settings.loadFromFile(Settings.java:38) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.dedicated.DedicatedServerProperties.fromFile(DedicatedServerProperties.java:132) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.dedicated.DedicatedServerSettings.<init>(DedicatedServerSettings.java:12) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.Main.main(Main.java:125) ~[neoforge-21.1.228.jar%23125!/:?] {re:classloading}
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[?:?] {}
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[?:?] {}
+	at MC-BOOTSTRAP/fml_loader@4.0.42/net.neoforged.fml.loading.targets.CommonLaunchHandler.runTarget(CommonLaunchHandler.java:136) ~[loader-4.0.42.jar%23102!/:4.0] {}
+	at MC-BOOTSTRAP/fml_loader@4.0.42/net.neoforged.fml.loading.targets.CommonLaunchHandler.serverService(CommonLaunchHandler.java:128) ~[loader-4.0.42.jar%23102!/:4.0] {}
+	at MC-BOOTSTRAP/fml_loader@4.0.42/net.neoforged.fml.loading.targets.NeoForgeServerDevLaunchHandler.runService(NeoForgeServerDevLaunchHandler.java:23) ~[loader-4.0.42.jar%23102!/:4.0] {}
+	at MC-BOOTSTRAP/fml_loader@4.0.42/net.neoforged.fml.loading.targets.CommonLaunchHandler.lambda$launchService$4(CommonLaunchHandler.java:118) ~[loader-4.0.42.jar%23102!/:4.0] {}
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.LaunchServiceHandlerDecorator.launch(LaunchServiceHandlerDecorator.java:30) [modlauncher-11.0.5.jar%2382!/:?] {}
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.LaunchServiceHandler.launch(LaunchServiceHandler.java:53) [modlauncher-11.0.5.jar%2382!/:?] {}
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.LaunchServiceHandler.launch(LaunchServiceHandler.java:71) [modlauncher-11.0.5.jar%2382!/:?] {}
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.Launcher.run(Launcher.java:103) [modlauncher-11.0.5.jar%2382!/:?] {}
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.Launcher.main(Launcher.java:74) [modlauncher-11.0.5.jar%2382!/:?] {}
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.BootstrapLaunchConsumer.accept(BootstrapLaunchConsumer.java:26) [modlauncher-11.0.5.jar%2382!/:?] {}
+	at MC-BOOTSTRAP/cpw.mods.modlauncher@11.0.5/cpw.mods.modlauncher.BootstrapLaunchConsumer.accept(BootstrapLaunchConsumer.java:23) [modlauncher-11.0.5.jar%2382!/:?] {}
+	at cpw.mods.bootstraplauncher@2.0.2/cpw.mods.bootstraplauncher.BootstrapLauncher.run(BootstrapLauncher.java:210) [bootstraplauncher-2.0.2.jar:?] {}
+	at cpw.mods.bootstraplauncher@2.0.2/cpw.mods.bootstraplauncher.BootstrapLauncher.main(BootstrapLauncher.java:69) [bootstraplauncher-2.0.2.jar:?] {}
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[?:?] {}
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[?:?] {}
+	at net.neoforged.devlaunch.Main.main(Main.java:57) [DevLaunch-1.0.2.jar:?] {}
+[18:47:36] [main/INFO] [mojang/YggdrasilAuthenticationService]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[18:47:36] [NeoForge Version Check/INFO] [ne.ne.fm.VersionChecker/]: [create] Starting version check at https://api.modrinth.com/updates/create/forge_updates.json?neoforge=only
+[18:47:36] [main/WARN] [minecraft/VanillaPackResourcesBuilder]: Assets URL 'union:/D:/Workspaces/Minecraft%20Projects/MC%20Mods/World-Engine-benchmark/neoforge/build/moddev/artifacts/neoforge-21.1.228.jar%23125!/assets/.mcassetsroot' uses unexpected schema
+[18:47:36] [main/WARN] [minecraft/VanillaPackResourcesBuilder]: Assets URL 'union:/D:/Workspaces/Minecraft%20Projects/MC%20Mods/World-Engine-benchmark/neoforge/build/moddev/artifacts/neoforge-21.1.228.jar%23125!/data/.mcassetsroot' uses unexpected schema
+[18:47:36] [main/INFO] [co.si.cr.Create/]: Created 157 recipes which will be injected into the game
+[18:47:36] [main/INFO] [co.si.cr.Create/]: Created 0 tags which will be injected into the game
+[18:47:36] [main/INFO] [ne.ne.ne.ga.GameTestHooks/]: Enabled Gametest Namespaces: [sable]
+[18:47:37] [NeoForge Version Check/INFO] [ne.ne.fm.VersionChecker/]: [create] Found status: OUTDATED Current: 6.0.10 Target: 6.0.10+mc1.21.1
+[18:47:38] [main/INFO] [minecraft/RecipeManager]: Loaded 2817 recipes
+[18:47:39] [main/INFO] [minecraft/AdvancementTree]: Loaded 2507 advancements
+[18:47:40] [Server thread/INFO] [de.ry.sa.Sable/]: Creating physics pipeline for ResourceKey[minecraft:dimension / minecraft:overworld] using RapierPhysicsPipelineProvider
+[18:47:40] [Server thread/INFO] [de.ry.sa.Sable/]: Using World Engine native directory D:\Workspaces\Minecraft Projects\MC Mods\World-Engine-benchmark\neoforge\build\gametest\.worldengine\natives
+[2026-10-01T11:47:40.513832800Z] [[32mINFO[0m] (worldengine_rapier) Rapier scene initialized
+[18:47:40] [Server thread/INFO] [de.ry.sa.Sable/]: Creating physics pipeline for ResourceKey[minecraft:dimension / minecraft:the_nether] using RapierPhysicsPipelineProvider
+[2026-10-01T11:47:40.944145000Z] [[32mINFO[0m] (worldengine_rapier) Rapier scene initialized
+[18:47:40] [Server thread/INFO] [de.ry.sa.Sable/]: Creating physics pipeline for ResourceKey[minecraft:dimension / minecraft:the_end] using RapierPhysicsPipelineProvider
+[2026-10-01T11:47:40.969338600Z] [[32mINFO[0m] (worldengine_rapier) Rapier scene initialized
+[18:47:41] [Server thread/INFO] [minecraft/MinecraftServer]: Preparing start region for dimension minecraft:overworld
+[18:47:41] [worldgen/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 2%
+[18:47:41] [Server thread/INFO] [minecraft/LoggerChunkProgressListener]: Time elapsed: 218 ms
+[18:47:41] [Server thread/INFO] [minecraft/GameTestServer]: Started game test server
+[18:47:41] [Server thread/INFO] [ne.ne.ne.se.pe.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler
+[18:47:41] [Server thread/INFO] [minecraft/GameTestServer]: 8 tests are now running at position 4564916, -59, 1674491!
+[18:47:41] [Server thread/INFO] [minecraft/GameTestRunner]: Running test batch 'defaultBatch:0' (8 tests)...
+[18:47:41] [Server thread/INFO] [minecraft/GameTestServer]: [        ]
+[2026-10-01T11:47:42.028292900Z] [[32mINFO[0m] (worldengine_rapier) Rapier scene initialized
+[2026-10-01T11:47:42.276112900Z] [[32mINFO[0m] (worldengine_rapier) Rapier scene initialized
+[18:47:42] [Server thread/INFO] [minecraft/GameTestServer]: [+__+____]
+[18:47:42] [Server thread/WARN] [minecraft/LogTestReporter]: (optional) physicstest.testgravity failed at 4564926, -60, 1674491. Sublevel position didn't follow gravity. Delta: 0.034374237060546875 at 4564928,-48,1674493 (relative: 2,12,2) (t=20)
+[18:47:42] [Server thread/INFO] [minecraft/GameTestServer]: [+x_+____]
+[18:47:42] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:42] [Server thread/INFO] [minecraft/GameTestServer]: [+x++____]
+[18:47:42] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+_]
+[18:47:42] [Server thread/ERROR] [minecraft/LogTestReporter]: assembledbodykeepsterrainsupport failed at 4564994, -60, 1674491! Assembled sublevel fell through its terrain support
+[18:47:42] [Server thread/WARN] [minecraft/LevelChunk]: Block entity create:pulse_extender @ BlockPos{x=4564976, y=-57, z=1674493} state Block{minecraft:air} invalid for ticking:
+[18:47:42] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:42] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:42] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:42] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:42] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:42] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:42] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:42] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:42] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:42] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/WARN] [minecraft/LevelChunk]: Block entity create:analog_lever @ BlockPos{x=4564976, y=-57, z=1674493} state Block{minecraft:air} invalid for ticking:
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/WARN] [minecraft/LevelChunk]: Block entity create:cart_assembler @ BlockPos{x=4564976, y=-57, z=1674493} state Block{minecraft:air} invalid for ticking:
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/WARN] [minecraft/LevelChunk]: Block entity create:pulse_repeater @ BlockPos{x=4564976, y=-57, z=1674493} state Block{minecraft:air} invalid for ticking:
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/WARN] [minecraft/LevelChunk]: Block entity create:pulse_timer @ BlockPos{x=4564976, y=-57, z=1674493} state Block{minecraft:air} invalid for ticking:
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:43] [Server thread/ERROR] [minecraft/Util]: POI data mismatch: already registered at BlockPos{x=20481032, y=128, z=20487176}
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:43] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++_+X]
+[18:47:44] [Server thread/INFO] [de.ry.sa.Sable/]: Skipped blocks:
+create:redstone_link
+create:andesite_tunnel
+create:large_water_wheel
+create:factory_gauge
+create:framed_glass_door
+create:train_door
+create:copper_door
+create:crushing_wheel_controller
+create:andesite_door
+create:gantry_carriage
+create:belt
+create:brass_tunnel
+create:brass_door
+[18:47:44] [Server thread/WARN] [minecraft/LogTestReporter]: (optional) assemblytest.testallblocks failed at 4564974, -60, 1674491. 2 blocks failed.
+create:millstone
+create:item_drain
+[18:47:44] [Server thread/INFO] [minecraft/GameTestRunner]: Starting re-run of tests: physicstest.testsnag
+[18:47:44] [Server thread/INFO] [minecraft/GameTestRunner]: Running test batch 'defaultBatch:0' (1 tests)...
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: [+x+++x+X]
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: ========= 8 GAME TESTS COMPLETE IN 2.901 s ======================
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: 1 required tests failed :(
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]:    - assembledbodykeepsterrainsupport
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: 2 optional tests failed
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]:    - physicstest.testgravity
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]:    - assemblytest.testallblocks
+[18:47:44] [Server thread/INFO] [minecraft/GameTestServer]: ====================================================
+[18:47:44] [Server thread/INFO] [minecraft/MinecraftServer]: Stopping server
+[18:47:44] [Server thread/INFO] [minecraft/MinecraftServer]: Saving players
+[18:47:44] [Server thread/INFO] [minecraft/MinecraftServer]: Saving worlds
+[18:47:45] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[Test Level]'/minecraft:overworld
+[18:47:45] [Server thread/INFO] [de.ry.sa.Sable/]: Saving sub-levels for level 'ServerLevel[Test Level]'/minecraft:overworld
+[18:47:45] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[Test Level]'/minecraft:the_nether
+[18:47:45] [Server thread/INFO] [de.ry.sa.Sable/]: Saving sub-levels for level 'ServerLevel[Test Level]'/minecraft:the_nether
+[18:47:45] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[Test Level]'/minecraft:the_end
+[18:47:45] [Server thread/INFO] [de.ry.sa.Sable/]: Saving sub-levels for level 'ServerLevel[Test Level]'/minecraft:the_end
+[18:47:45] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (world): All chunks are saved
+[18:47:45] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[18:47:45] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[18:47:45] [Server thread/INFO] [minecraft/MinecraftServer]: ThreadedAnvilChunkStorage: All dimensions are saved
+[18:47:45] [Server thread/INFO] [minecraft/GameTestServer]: Game test server shutting down
+
+> Task :neoforge:runGameTest FAILED
+
+[Incubating] Problems report is available at: file:///D:/Workspaces/Minecraft%20Projects/MC%20Mods/World-Engine-benchmark/build/reports/problems/problems-report.html
+gradlew.bat : 
+At line:1 char:1
++ & .\gradlew.bat -PbenchmarkEngine=worldengine :common:test :worldengi ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':neoforge:runGameTest' (registered in build file 'neoforge\build.gradle').
+> Process 'command 'D:\DevCaches\.gradle\jdks\jetbrains_s_r_o_-21-amd64-windows.2\bin\java.exe'' finished with 
+non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.5.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 44s
+25 actionable tasks: 10 executed, 15 up-to-date

@@ -615,6 +615,8 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_step<'
 ) {
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         with_handle(handle, |scene| {
+            #[cfg(feature = "benchmark-profiler")]
+            let profile_start = std::time::Instant::now();
             crate::rope::tick(scene);
             crate::joints::tick(scene);
 
@@ -693,8 +695,8 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_step<'
                                 recentered_bounds(universe_body.bounds, scene.local_to_global(*previous_translation));
                             let current_bounds =
                                 recentered_bounds(universe_body.bounds, scene.local_to_global(body.translation().clone()));
-                            if !terrain_overlaps_bounds(&sable, previous_bounds)
-                                && terrain_overlaps_bounds(&sable, current_bounds)
+                            if !terrain_overlaps_bounds(&sable, previous_bounds, *scene.world_origin.read().unwrap())
+                                && terrain_overlaps_bounds(&sable, current_bounds, *scene.world_origin.read().unwrap())
                             {
                                 body.set_position(*previous, true);
                                 body.set_linvel(Vec3::ZERO, true);
@@ -704,12 +706,62 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_step<'
                 }
                 sim.integration_parameters.dt = time_step as marten::Real;
             }
+            #[cfg(feature = "benchmark-profiler")]
+            let profile_after_solver = std::time::Instant::now();
             let mut sable = scene.sable_data.write().unwrap();
             let mut universe = scene.universe.write().unwrap();
             let mut sim = scene.sim_data.write().unwrap();
             let world_origin = *scene.world_origin.read().unwrap();
             sync_active_scene_bodies(&mut sim, &mut sable, &mut universe, world_origin);
+            #[cfg(feature = "benchmark-profiler")]
+            let profile_after_sync = std::time::Instant::now();
             check_scene_evictions(&mut sim, &mut sable, &mut universe, world_origin, scene.gravity);
+            #[cfg(feature = "benchmark-profiler")]
+            let profile_after_eviction = std::time::Instant::now();
+            #[cfg(feature = "benchmark-profiler")]
+            {
+                static SAMPLES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+                if SAMPLES.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 128 == 0
+                    && std::env::var("WE_NATIVE_PROFILE").as_deref() == Ok("true") {
+                    let ms = |duration: std::time::Duration| duration.as_secs_f64() * 1000.0;
+                    let counters = &sim.pipeline.counters;
+                    let manifolds = sim.narrow_phase.contact_pairs().map(|pair| pair.manifolds.len()).sum::<usize>();
+                    let contacts = sim.narrow_phase.contact_pairs().flat_map(|pair| pair.manifolds.iter())
+                        .map(|manifold| manifold.data.solver_contacts.len()).sum::<usize>();
+                    let mut unique_contacts = std::collections::HashSet::new();
+                    let mut plain_contacts = 0;
+                    let mut duplicate_contacts = 0;
+                    for pair in sim.narrow_phase.contact_pairs() {
+                        for manifold in &pair.manifolds {
+                            if marten::level::VoxelColliderData::needs_hooks(manifold.data.user_data) { continue; }
+                            let normal = manifold.data.normal;
+                            for contact in &manifold.data.solver_contacts {
+                                plain_contacts += 1;
+                                let key = (pair.collider1, pair.collider2, [
+                                    contact.point.x.to_bits(), contact.point.y.to_bits(), contact.point.z.to_bits(),
+                                    normal.x.to_bits(), normal.y.to_bits(), normal.z.to_bits(),
+                                    contact.dist.to_bits(), contact.friction.to_bits(), contact.restitution.to_bits(),
+                                    contact.tangent_velocity.x.to_bits(), contact.tangent_velocity.y.to_bits(), contact.tangent_velocity.z.to_bits(),
+                                ]);
+                                if !unique_contacts.insert(key) { duplicate_contacts += 1; }
+                            }
+                        }
+                    }
+                    let max_tree_depth = sable.level_colliders.values().filter_map(|info| info.octree.as_ref())
+                        .map(|tree| tree.log_size).max().unwrap_or(0);
+                    eprintln!("WE_NATIVE_PROFILE epoch_ms={} scene={} total_ms={:.4} solver_and_guard_ms={:.4} sync_ms={:.4} evict_ms={:.4} rapier_ms={:.4} broad_ms={:.4} narrow_ms={:.4} solver_ms={:.4} ccd_ms={:.4} bodies={} active={} manifolds={} contacts={} iterations={} pgs={} stabilization={} min_island={} max_tree_depth={} plain_contacts={} exact_duplicate_contacts={}",
+                        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(),
+                        handle, ms(profile_after_eviction.duration_since(profile_start)), ms(profile_after_solver.duration_since(profile_start)),
+                        ms(profile_after_sync.duration_since(profile_after_solver)), ms(profile_after_eviction.duration_since(profile_after_sync)),
+                        counters.step_time_ms(), counters.broad_phase_time_ms(), counters.narrow_phase_time_ms(),
+                        counters.solver_time_ms(), counters.ccd_time_ms(), sim.rigid_body_set.len(),
+                        sim.island_manager.active_bodies().count(), manifolds, contacts,
+                        sim.integration_parameters.num_solver_iterations,
+                        sim.integration_parameters.num_internal_pgs_iterations,
+                        sim.integration_parameters.num_internal_stabilization_iterations,
+                        sim.integration_parameters.min_island_size, max_tree_depth, plain_contacts, duplicate_contacts);
+                }
+            }
         });
     }));
 
@@ -1200,7 +1252,6 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_addChu
         ));
     }
 
-    let has_solid_blocks = blocks.iter().any(|block| block.0 != 0);
     let chunk_serial_callback_blocks = {
         let physics_state = get_physics_state();
         blocks
@@ -1261,9 +1312,8 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_addChu
             }
         } else {
             let key = pack_section_pos(local_x, local_y, local_z);
-            if has_solid_blocks {
-                universe.terrain_sections.insert(pack_section_pos(x, y, z));
-            }
+            // World chunk lifecycle owns dimension-wide coverage. Region
+            // streaming must not add or remove another region's coverage.
             if let Some(old) = main_level_chunks.insert(key, chunk) {
                 if old.serial_callback_blocks > 0 {
                     *terrain_serial_callback_sections =
@@ -1377,10 +1427,8 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_remove
         let physics_state = get_physics_state();
         let collider_map = &physics_state.voxel_collider_map;
         let mut sable_data = scene.sable_data.write().unwrap();
-        let mut universe = scene.universe.write().unwrap();
 
         if global > 0 {
-            universe.terrain_sections.remove(&pack_section_pos(x, y, z));
             if let Some(old) = sable_data
                 .main_level_chunks
                 .remove(&pack_section_pos(local_x, local_y, local_z))
@@ -1968,39 +2016,11 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_clearC
     let arr: Vec<jdouble> = with_handle(handle, |scene| {
         let mut reported = scene.reported_collisions.lock();
 
-        let max_collisions = 100;
-
-        reported.truncate(max_collisions);
+        reported.truncate(MAX_REPORTED_COLLISIONS);
         let mut arr: Vec<jdouble> = Vec::with_capacity(reported.len() * 15);
 
         for collision in reported.iter() {
-            let body_a = if let Some(id) = collision.body_a {
-                id as jdouble
-            } else {
-                -1.0
-            };
-
-            let body_b = if let Some(id) = collision.body_b {
-                id as jdouble
-            } else {
-                -1.0
-            };
-
-            arr.push(body_a);
-            arr.push(body_b);
-            arr.push(collision.force_amount as jdouble);
-            arr.push(collision.local_normal_a.x as jdouble);
-            arr.push(collision.local_normal_a.y as jdouble);
-            arr.push(collision.local_normal_a.z as jdouble);
-            arr.push(collision.local_normal_b.x as jdouble);
-            arr.push(collision.local_normal_b.y as jdouble);
-            arr.push(collision.local_normal_b.z as jdouble);
-            arr.push(collision.local_point_a.x as jdouble);
-            arr.push(collision.local_point_a.y as jdouble);
-            arr.push(collision.local_point_a.z as jdouble);
-            arr.push(collision.local_point_b.x as jdouble);
-            arr.push(collision.local_point_b.y as jdouble);
-            arr.push(collision.local_point_b.z as jdouble);
+            arr.extend_from_slice(&collision_values(collision));
         }
 
         reported.clear();
@@ -2013,6 +2033,92 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_clearC
         .unwrap();
 
     double_array
+}
+
+const MAX_REPORTED_COLLISIONS: usize = 100;
+const COLLISION_RECORD_BYTES: usize = 15 * std::mem::size_of::<f64>();
+
+fn collision_values(c: &ReportedCollision) -> [f64; 15] {
+    [c.body_a.map_or(-1.0, |id| id as f64), c.body_b.map_or(-1.0, |id| id as f64),
+     c.force_amount, c.local_normal_a.x, c.local_normal_a.y, c.local_normal_a.z,
+     c.local_normal_b.x, c.local_normal_b.y, c.local_normal_b.z,
+     c.local_point_a.x, c.local_point_a.y, c.local_point_a.z,
+     c.local_point_b.x, c.local_point_b.y, c.local_point_b.z]
+}
+
+fn drain_collision_bytes(reported: &mut Vec<ReportedCollision>, output: &mut [u8]) -> jint {
+    // Reject undersized storage without losing events. This also bounds every
+    // write before the first mutation and avoids assuming pointer alignment.
+    if output.len() < MAX_REPORTED_COLLISIONS * COLLISION_RECORD_BYTES { return -1; }
+    let count = reported.len().min(MAX_REPORTED_COLLISIONS);
+    for (record, collision) in reported.iter().take(count).enumerate() {
+        for (field, value) in collision_values(collision).iter().enumerate() {
+            let offset = record * COLLISION_RECORD_BYTES + field * 8;
+            output[offset..offset + 8].copy_from_slice(&value.to_ne_bytes());
+        }
+    }
+    reported.clear(); // Retain the legacy 100-event reporting limit and drain policy.
+    count as jint
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_writeCollisions<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    buffer: jni::objects::JByteBuffer<'local>,
+) -> jint {
+    let capacity = env.get_direct_buffer_capacity(&buffer).unwrap_or(0);
+    if capacity < MAX_REPORTED_COLLISIONS * COLLISION_RECORD_BYTES { return -1; }
+    let Ok(address) = env.get_direct_buffer_address(&buffer) else { return -1; };
+    if address.is_null() { return -1; }
+    let output = unsafe { std::slice::from_raw_parts_mut(address, capacity) };
+    with_handle(handle, |scene| drain_collision_bytes(&mut scene.reported_collisions.lock(), output))
+}
+
+#[cfg(test)]
+mod collision_buffer_tests {
+    use super::*;
+
+    fn event(id: LevelColliderID) -> ReportedCollision {
+        ReportedCollision { body_a: Some(id), body_b: None, force_amount: 3.5,
+            local_normal_a: DVec3::new(4.0, 5.0, 6.0), local_normal_b: DVec3::new(7.0, 8.0, 9.0),
+            local_point_a: DVec3::new(10.0, 11.0, 12.0), local_point_b: DVec3::new(13.0, 14.0, 15.0) }
+    }
+
+    #[test]
+    fn direct_collision_layout_preserves_ids_sentinel_and_all_fields() {
+        let mut reported = vec![event(12345)];
+        let mut output = vec![0xaa; MAX_REPORTED_COLLISIONS * COLLISION_RECORD_BYTES + 8];
+        assert_eq!(drain_collision_bytes(&mut reported, &mut output), 1);
+        let expected = [12345.0_f64, -1.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0];
+        for (index, value) in expected.iter().enumerate() {
+            assert_eq!(&output[index * 8..index * 8 + 8], &value.to_ne_bytes());
+        }
+        assert!(output[COLLISION_RECORD_BYTES..].iter().all(|&b| b == 0xaa));
+        assert!(reported.is_empty());
+    }
+
+    #[test]
+    fn insufficient_collision_buffer_preserves_events_and_storage() {
+        let mut reported = vec![event(1)];
+        let mut output = vec![0xaa; MAX_REPORTED_COLLISIONS * COLLISION_RECORD_BYTES - 1];
+        assert_eq!(drain_collision_bytes(&mut reported, &mut output), -1);
+        assert_eq!(reported.len(), 1);
+        assert!(output.iter().all(|&b| b == 0xaa));
+    }
+
+    #[test]
+    fn collision_buffer_retains_legacy_limit_and_drains_once() {
+        let mut reported: Vec<_> = (0..101).map(event).collect();
+        let mut output = vec![0xaa; MAX_REPORTED_COLLISIONS * COLLISION_RECORD_BYTES];
+        assert_eq!(drain_collision_bytes(&mut reported, &mut output), 100);
+        assert!(reported.is_empty());
+        assert_eq!(f64::from_ne_bytes(output[99 * COLLISION_RECORD_BYTES..99 * COLLISION_RECORD_BYTES + 8].try_into().unwrap()), 99.0);
+        let before = output.clone();
+        assert_eq!(drain_collision_bytes(&mut reported, &mut output), 0);
+        assert_eq!(output, before);
+    }
 }
 
 /// Applies a force to a body
@@ -2554,7 +2660,8 @@ fn body_has_constraints(
             .is_some()
 }
 
-fn terrain_overlaps_bounds(sable: &SableSceneData, bounds: crate::scene::UniverseAabb) -> bool {
+fn terrain_overlaps_bounds(sable: &SableSceneData, bounds: crate::scene::UniverseAabb, world_origin: crate::scene::DVec3) -> bool {
+    let bounds = crate::scene::UniverseAabb { min: bounds.min - world_origin, max: bounds.max - world_origin };
     let min = rapier3d::glamx::IVec3::new(bounds.min.x.floor() as i32, bounds.min.y.floor() as i32, bounds.min.z.floor() as i32);
     let max = rapier3d::glamx::IVec3::new((bounds.max.x - std::f64::EPSILON).floor() as i32, (bounds.max.y - std::f64::EPSILON).floor() as i32, (bounds.max.z - std::f64::EPSILON).floor() as i32);
     let block_count = (max.x as i64 - min.x as i64 + 1)
@@ -2648,7 +2755,8 @@ pub fn check_scene_evictions(
 
         let bounds = Some(ubody.bounds);
         if is_slow && is_gravity_free {
-            let has_collision = bounds.is_some_and(|b| !universe.spatial_index.query(b, id).is_empty() || terrain_overlaps_bounds(sable, b));
+            let has_collision = bounds.is_some_and(|b| terrain_overlaps_bounds(sable, b, world_origin)
+                || universe.spatial_index.intersects_any(b, id));
             if !has_collision {
                 if evict_rapier_body(sim, sable, universe, world_origin, id, false, true) {
                     if let Some(body) = universe.universe_bodies.get_mut(&id) {
@@ -2661,9 +2769,11 @@ pub fn check_scene_evictions(
             let elapsed = 0.05 * BALLISTIC_MAX_INTERVAL as Real;
             let lookahead_disp = velocity * elapsed + effective_gravity * (0.5 * elapsed * elapsed);
             let swept = bounds.swept(crate::scene::DVec3::new(lookahead_disp.x as f64, lookahead_disp.y as f64, lookahead_disp.z as f64));
-            let has_collision = !universe.spatial_index.query(swept, id).is_empty()
-                || terrain_overlaps_bounds(sable, swept)
-                || universe.swept_intersects_terrain(swept);
+            // These are pure OR predicates. Known streamed terrain can retain
+            // residency immediately, without allocating a body-neighbor list.
+            let has_collision = universe.swept_intersects_terrain(swept)
+                || terrain_overlaps_bounds(sable, swept, world_origin)
+                || universe.spatial_index.intersects_any(swept, id);
             if !has_collision {
                 if evict_rapier_body(sim, sable, universe, world_origin, id, false, true) {
                     if let Some(body) = universe.universe_bodies.get_mut(&id) {
@@ -3235,6 +3345,23 @@ mod residency_tests {
             assembly_root: id,
             assembly_size: 1,
             command_queue: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn global_terrain_bounds_are_checked_in_the_regions_local_frame() {
+        let (_, sable_data, _) = scene_data();
+        let mut sable = sable_data.write().unwrap();
+        let local = IVec3::new(3, -2, 7);
+        let mut section = ChunkSection::new(vec![(0, VoxelPhysicsState::Empty); 4096]);
+        section.set_block(local.x & 15, local.y & 15, local.z & 15, (1, VoxelPhysicsState::Face));
+        sable.main_level_chunks.insert(pack_section_pos(local.x >> 4, local.y >> 4, local.z >> 4), section);
+        for origin in [crate::scene::DVec3::zeros(), crate::scene::DVec3::new(28_000_000.0, 4096.0, -28_000_000.0)] {
+            let occupied = origin + crate::scene::DVec3::new(3.5, -1.5, 7.5);
+            let empty = occupied + crate::scene::DVec3::new(1.0, 0.0, 0.0);
+            let half = crate::scene::DVec3::new(0.2, 0.2, 0.2);
+            assert!(terrain_overlaps_bounds(&sable, crate::scene::UniverseAabb::around(occupied, half), origin));
+            assert!(!terrain_overlaps_bounds(&sable, crate::scene::UniverseAabb::around(empty, half), origin));
         }
     }
 
@@ -4706,10 +4833,14 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_drainE
     universe_handle: jni::sys::jlong,
 ) -> jni::sys::jintArray {
     if universe_handle == 0 {
-        return env.new_int_array(0).unwrap().into_raw();
+        return std::ptr::null_mut();
     }
     let universe_ptr = universe_handle as *mut std::sync::RwLock<crate::scene::DimensionUniverse>;
     let mut universe = unsafe { &*universe_ptr }.write().unwrap();
+    if universe.eviction_events.is_empty() {
+        universe.pending_evictions.clear();
+        return std::ptr::null_mut();
+    }
     let evictions: Vec<i32> = universe.eviction_events.drain(..).map(|id| id as i32).collect();
     universe.pending_evictions.clear();
     let array = env.new_int_array(evictions.len() as jni::sys::jsize).unwrap();

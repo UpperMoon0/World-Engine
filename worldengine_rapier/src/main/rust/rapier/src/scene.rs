@@ -153,9 +153,15 @@ impl WorldSpatialIndex {
     }
 
     pub fn update(&mut self, id: LevelColliderID, bounds: UniverseAabb) {
+        let range = Self::cell_range(bounds);
+        if self.bounds.get(&id).is_some_and(|previous| Self::cell_range(*previous) == range) {
+            // Exact bounds still change; only unchanged coarse memberships survive.
+            self.bounds.insert(id, bounds);
+            return;
+        }
         self.remove(id);
         self.bounds.insert(id, bounds);
-        let (min, max) = Self::cell_range(bounds);
+        let (min, max) = range;
         let nx = (max.0 as i64 - min.0 as i64 + 1).max(0) as usize;
         let ny = (max.1 as i64 - min.1 as i64 + 1).max(0) as usize;
         let nz = (max.2 as i64 - min.2 as i64 + 1).max(0) as usize;
@@ -217,6 +223,27 @@ impl WorldSpatialIndex {
                     .is_some_and(|bounds| bounds.intersects(&query))
             })
             .collect()
+    }
+
+    /// Boolean callers need no candidate set or result vector. Repeated cell
+    /// membership is harmless because the exact predicate exits on its first hit.
+    pub fn intersects_any(&self, query: UniverseAabb, except: LevelColliderID) -> bool {
+        let (min, max) = Self::cell_range(query);
+        let count = (max.0 as i64 - min.0 as i64 + 1).max(0)
+            .saturating_mul((max.1 as i64 - min.1 as i64 + 1).max(0))
+            .saturating_mul((max.2 as i64 - min.2 as i64 + 1).max(0));
+        let matches = |id: &LevelColliderID| *id != except
+            && self.bounds.get(id).is_some_and(|bounds| bounds.intersects(&query));
+        if count > self.bounds.len() as i64 {
+            return self.bounds.keys().any(matches);
+        }
+        if self.large_bodies.iter().any(matches) { return true; }
+        for x in min.0..=max.0 { for y in min.1..=max.1 { for z in min.2..=max.2 {
+            if self.cells.get(&MacroCell(x, y, z)).is_some_and(|ids| ids.iter().any(matches)) {
+                return true;
+            }
+        } } }
+        false
     }
 
     #[cfg(test)]
@@ -575,6 +602,49 @@ impl SableSceneData {
 #[cfg(test)]
 mod spatial_tests {
     use super::*;
+
+    #[test]
+    fn incremental_updates_and_boolean_queries_match_all_pairs_oracle() {
+        let mut index = WorldSpatialIndex::default();
+        let mut oracle = HashMap::<LevelColliderID, UniverseAabb>::new();
+        let mut seed = 470101_u64;
+        for step in 0..1200 {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let id = (seed % 40) as LevelColliderID;
+            if step % 11 == 0 {
+                index.remove(id); oracle.remove(&id);
+            } else {
+                let x = ((seed >> 8) % 600) as f64 - 300.0;
+                let z = ((seed >> 20) % 300) as f64 - 150.0;
+                let size = if step % 47 == 0 { 100_000.0 } else { 30.0 };
+                let b = UniverseAabb::around(DVec3::new(x, 8.0, z), DVec3::repeat(size));
+                index.update(id, b); oracle.insert(id, b);
+            }
+            for (except, query) in &oracle {
+                let expected: HashSet<_> = oracle.iter()
+                    .filter(|(id, bounds)| *id != except && bounds.intersects(query))
+                    .map(|(id, _)| *id).collect();
+                // Avoid the old list query's unbounded huge-query cell loop.
+                if query.max.x - query.min.x < 1000.0 {
+                    assert_eq!(index.query(*query, *except).into_iter().collect::<HashSet<_>>(), expected);
+                }
+                assert_eq!(index.intersects_any(*query, *except), !expected.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn same_cell_movement_updates_exact_bounds() {
+        let mut index = WorldSpatialIndex::default();
+        let start = UniverseAabb::around(DVec3::new(10.0, 10.0, 10.0), DVec3::repeat(1.0));
+        let moved = UniverseAabb::around(DVec3::new(20.0, 10.0, 10.0), DVec3::repeat(1.0));
+        index.update(7, start); index.update(7, moved);
+        assert!(!index.intersects_any(start, 99));
+        assert!(index.intersects_any(moved, 99));
+        assert!(!index.intersects_any(moved, 7));
+        index.remove(7);
+        assert!(!index.intersects_any(moved, 99));
+    }
 
     #[test]
     fn sparse_grid_returns_only_intersecting_candidates() {

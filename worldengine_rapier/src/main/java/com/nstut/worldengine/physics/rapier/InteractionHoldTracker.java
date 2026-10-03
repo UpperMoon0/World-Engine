@@ -4,7 +4,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import java.util.PriorityQueue;
 
-/** Reuse one deadline per body until removal; only live holds are queued. */
+/** Reuse renewed deadlines during reconciliation; only live holds are queued. */
 final class InteractionHoldTracker {
     private static final class Deadline implements Comparable<Deadline> {
         final int id;
@@ -15,6 +15,7 @@ final class InteractionHoldTracker {
     }
     private final Int2ObjectOpenHashMap<Deadline> holds = new Int2ObjectOpenHashMap<>();
     private final PriorityQueue<Deadline> queue = new PriorityQueue<>();
+    private final java.util.ArrayList<Deadline> expiredDeadlines = new java.util.ArrayList<>();
 
     void renew(int id, long expiry) {
         Deadline deadline = holds.get(id);
@@ -38,7 +39,14 @@ final class InteractionHoldTracker {
     boolean holds(int id, long tick) { Deadline deadline = holds.get(id); return deadline != null && deadline.expiry > tick; }
     void remove(int id) { holds.remove(id); }
     boolean isEmpty() { return queue.isEmpty(); }
-    void clear() { holds.clear(); queue.clear(); }
+    void clear() { holds.clear(); queue.clear(); expiredDeadlines.clear(); }
+
+    void finishExpiryReconciliation() {
+        for (Deadline deadline : expiredDeadlines) {
+            if (!deadline.queued && holds.get(deadline.id) == deadline) holds.remove(deadline.id);
+        }
+        expiredDeadlines.clear();
+    }
 
     void drainExpired(long tick, IntSet expired) {
         while (!queue.isEmpty() && queue.peek().scheduled <= tick) {
@@ -49,8 +57,9 @@ final class InteractionHoldTracker {
                 queue.add(deadline);
             } else {
                 // Reconciliation can renew an unchanged interaction immediately.
-                // Retain its object until body removal without keeping it live or queued.
+                // Retain it for this reconciliation without keeping it live or queued.
                 deadline.queued = false;
+                expiredDeadlines.add(deadline);
                 expired.add(deadline.id);
             }
         }

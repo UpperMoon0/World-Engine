@@ -327,6 +327,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
         this.dirtyInteractionBodies.clear();
         this.interactionHolds.drainExpired(this.currentTick, movedBodies);
         this.updateInteractionGraph(movedBodies);
+        this.interactionHolds.finishExpiryReconciliation();
         List<Migration> migrations = this.migrationsScratch;
         migrations.clear();
         for (var idIterator = movedBodies.iterator(); idIterator.hasNext();) {

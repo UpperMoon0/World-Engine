@@ -28,6 +28,7 @@ class InteractionHoldTrackerTest {
             for (int expired : expected) if ((expired & 1) == 0) {
                 holds.renew(expired, tick + 20); model.put(expired, tick + 20);
             }
+            holds.finishExpiryReconciliation();
             for (int candidate = 0; candidate < 32; candidate++) {
                 assertEquals(model.containsKey(candidate), holds.holds(candidate, tick), "tick " + tick + ", id " + candidate);
             }

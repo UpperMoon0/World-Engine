@@ -16,6 +16,12 @@ pub struct VoxelColliderMap {
     dynamic_colliders: HashMap<IVec3, Option<VoxelColliderData>>,
 }
 
+// Chunk block IDs reserve zero for air and encode a registry index plus one.
+// Callback guards receive those IDs, unlike get(), which receives an index.
+fn registered_block<T>(entries: &[Option<T>], block_id: usize) -> Option<&T> {
+    entries.get(block_id.checked_sub(1)?).and_then(Option::as_ref)
+}
+
 impl VoxelColliderMap {
     pub fn new() -> Self {
         Self {
@@ -38,11 +44,27 @@ impl VoxelColliderMap {
         collider.as_ref()
     }
 
-    pub fn requires_java_callback(&self, index: usize) -> bool {
-        self.voxel_colliders
-            .get(index)
-            .and_then(Option::as_ref)
+    pub fn requires_java_callback(&self, block_id: usize) -> bool {
+        registered_block(&self.voxel_colliders, block_id)
             .is_some_and(|data| data.contact_events.is_some())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::registered_block;
+
+    #[test]
+    fn packed_block_ids_resolve_callbacks_without_air_or_neighbor_aliasing() {
+        // Independent registry: the first and fourth entries have callbacks;
+        // the second is ordinary and the third is absent. Chunk IDs are 1..4.
+        let entries = [Some(true), Some(false), None, Some(true)];
+        let packed_ids = [0, 1, 2, 3, 4, 0, 2, 5, usize::MAX];
+        let observed: Vec<_> = packed_ids.iter().map(|id| {
+            registered_block(&entries, *id).copied().unwrap_or(false)
+        }).collect();
+        assert_eq!(observed, [false, true, false, false, true, false, false, false, false]);
+        assert_eq!(observed.iter().filter(|requires_callback| **requires_callback).count(), 2);
     }
 }
 

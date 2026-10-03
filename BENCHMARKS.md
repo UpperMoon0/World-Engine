@@ -97,6 +97,12 @@ hooks, fluids, dynamic voxel overrides and other body/kinematic paths retain
 per-voxel dispatch. Geometry-version and bounds changes invalidate the cache.
 Native tests cover eligibility and invalidation; a runtime test removes the
 center voxel from a supported cuboid and requires it to fall through the hole.
+For eligible body cuboids, complete terrain rectangles of one material and
+height also use their exact union. Terrain rectangles are rebuilt from current
+candidates on each collision query; incomplete groups retain individual voxels.
+Native tests compare their occupied union at ordinary and large coordinates.
+Runtime tests remove a rectangular floor beneath a sleeping body and check
+half-height slab support, covering invalidation and partial-shape fallback.
 `tools/test_jni_signatures.py` checks every Java native declaration against Rust
 argument counts and primitive argument types, including the voxel-registration
 call. These correctness checks do not establish a performance improvement.

@@ -70,6 +70,14 @@ struct MergedVoxelBox {
     block_id: u32,
 }
 
+impl MergedVoxelBox {
+    fn contains_voxel(&self, position: IVec3) -> bool {
+        let offset = position.as_i64vec3() - self.min.as_i64vec3();
+        offset.cmpge(rapier3d::glamx::I64Vec3::ZERO).all()
+            && offset.cmplt(self.extents.as_i64vec3()).all()
+    }
+}
+
 fn is_plain_unit_cube(data: &marten::level::VoxelColliderData) -> bool {
     !data.dynamic
         && !data.is_fluid
@@ -124,6 +132,26 @@ fn merge_unit_voxels(
         extents: extents.as_ivec3(),
         block_id,
     })
+}
+
+// Each output is the exact union of one complete material/layer group in the
+// current conservative terrain candidates. Irregular groups remain individual
+// voxels; in particular this cannot fill a terrain hole or merge materials.
+fn merge_terrain_layers(positions: &[(IVec3, u32)]) -> Vec<MergedVoxelBox> {
+    let mut groups = std::collections::BTreeMap::<(i32, u32), std::collections::HashSet<IVec3>>::new();
+    for &(pos, id) in positions {
+        groups.entry((pos.y, id)).or_default().insert(pos);
+    }
+    let mut merged = Vec::new();
+    for ((_, id), cells) in groups {
+        if cells.len() < 2 { continue; }
+        let min = cells.iter().copied().reduce(IVec3::min).unwrap();
+        let max = cells.iter().copied().reduce(IVec3::max).unwrap();
+        if let Some(cuboid) = merge_unit_voxels(min, max, |pos| Some(cells.contains(&pos).then_some(id))) {
+            merged.push(cuboid);
+        }
+    }
+    merged
 }
 
 impl VoxelManifoldWorkspace {
@@ -192,6 +220,45 @@ fn match_voxel_contacts<ContactData: Default + Copy>(
 #[cfg(test)]
 mod tracking_tests {
     use super::*;
+
+    #[test]
+    fn terrain_rectangles_cover_exactly_the_input_layers_at_large_coordinates() {
+        for origin in [IVec3::ZERO, IVec3::splat(-50), IVec3::splat(28_000_000)] {
+            let mut cells = Vec::new();
+            for y in 0..2 { for x in 0..3 { for z in 0..2 {
+                cells.push((origin + IVec3::new(x, y, z), 9 + y as u32));
+            }}}
+            let boxes = merge_terrain_layers(&cells);
+            assert_eq!(boxes.len(), 2);
+            for x in -1..=3 { for y in -1..=2 { for z in -1..=2 {
+                let pos = origin + IVec3::new(x, y, z);
+                let expected = cells.iter().any(|(cell, _)| *cell == pos);
+                let actual = boxes.iter().any(|box_| {
+                    box_.contains_voxel(pos)
+                });
+                assert_eq!(actual, expected, "Terrain union differs at {pos:?}");
+            }}}
+        }
+    }
+
+    #[test]
+    fn incomplete_or_mixed_terrain_groups_cannot_fill_holes_or_merge_materials() {
+        let complete: Vec<_> = (0..3).flat_map(|x| (0..3).map(move |z| (IVec3::new(x, 0, z), 9))).collect();
+        let hole: Vec<_> = complete.iter().copied().filter(|(pos, _)| *pos != IVec3::new(1, 0, 1)).collect();
+        assert!(merge_terrain_layers(&hole).is_empty());
+        let mixed: Vec<_> = complete.iter().map(|(pos, id)| (*pos, if *pos == IVec3::new(1, 0, 1) { 10 } else { *id })).collect();
+        assert!(merge_terrain_layers(&mixed).is_empty());
+        let mut duplicates = complete.clone();
+        duplicates.extend_from_slice(&complete);
+        assert_eq!(merge_terrain_layers(&duplicates).len(), 1);
+        let huge = [(IVec3::ZERO, 9), (IVec3::new(4096, 0, 0), 9)];
+        assert!(merge_terrain_layers(&huge).is_empty());
+        let edge = [(IVec3::new(i32::MAX - 1, 0, 0), 9), (IVec3::new(i32::MAX, 0, 0), 9)];
+        let rectangle = merge_terrain_layers(&edge).pop().unwrap();
+        assert!(rectangle.contains_voxel(edge[0].0));
+        assert!(rectangle.contains_voxel(edge[1].0));
+        assert!(!rectangle.contains_voxel(IVec3::new(i32::MAX - 2, 0, 0)));
+    }
 
     fn key() -> VoxelManifoldKey {
         VoxelManifoldKey {
@@ -1000,6 +1067,29 @@ impl SableDispatcher {
             )]
         });
 
+        let mut terrain_cuboids = std::collections::HashMap::new();
+        if merged.is_some() {
+            let eligible: Vec<_> = pairs.iter().filter_map(|(pos, _)| {
+                let chunk = chunk_access_1.get_chunk(pos.x >> 4, pos.y >> 4, pos.z >> 4)?;
+                let (id, state) = chunk.get_block(pos.x & 15, pos.y & 15, pos.z & 15);
+                if id == 0 || state == VoxelPhysicsState::Empty { return None; }
+                let data = physics_state.voxel_collider_map.get((id - 1) as usize, *pos)?;
+                is_plain_unit_cube(data).then_some((*pos, id))
+            }).collect();
+            let rectangles = merge_terrain_layers(&eligible);
+            let mut replaced = std::collections::HashSet::new();
+            for rectangle in rectangles {
+                for &(pos, id) in &eligible {
+                    if id == rectangle.block_id && pos != rectangle.min
+                        && rectangle.contains_voxel(pos) {
+                        replaced.insert(pos);
+                    }
+                }
+                terrain_cuboids.insert(rectangle.min, rectangle);
+            }
+            pairs.retain(|(pos, _)| !replaced.contains(pos));
+        }
+
         for (static_pos, dynamic_pos) in pairs.iter() {
             let static_x = static_pos.x;
             let static_y = static_pos.y;
@@ -1031,7 +1121,12 @@ impl SableDispatcher {
                 continue;
             };
 
-            for (min_x, min_y, min_z, max_x, max_y, max_z) in &voxel_collider_data.collision_boxes {
+            let terrain_box = terrain_cuboids.get(static_pos).map(|cuboid: &MergedVoxelBox| [(
+                0.0, 0.0, 0.0, cuboid.extents.x as f32, cuboid.extents.y as f32, cuboid.extents.z as f32,
+            )]);
+            for (min_x, min_y, min_z, max_x, max_y, max_z) in terrain_box.as_ref().map_or(
+                voxel_collider_data.collision_boxes.as_slice(), |boxes| boxes.as_slice(),
+            ) {
                 if manifolds.len() <= manifold_index {
                     manifolds.push(ContactManifold::new());
                 }
@@ -1069,7 +1164,9 @@ impl SableDispatcher {
                 }
                 debug_assert!(merged.is_none_or(|cuboid| cuboid.block_id == other_block_id));
 
-                if if merged.is_some() {
+                if if terrain_box.is_some() {
+                    false // Its internal voxel faces have disappeared into the exact union.
+                } else if merged.is_some() {
                     voxel_collider_state == Interior
                 } else {
                     Self::can_ignore_collision(voxel_collider_state, other_voxel_collider_state)
@@ -1150,6 +1247,7 @@ impl SableDispatcher {
                         center_of_mass_2,
                         &mut new_manifold,
                         merged.is_some(),
+                        terrain_box.is_some(),
                     ) {
                         // No points means no solver constraint or collision event.
                         // Avoid retaining an empty manifold and allocating hook
@@ -1333,6 +1431,7 @@ fn is_interior_collision<ManifoldData: Default + Clone, ContactData: Default + C
     center_of_mass_2: DVec3,
     manifold: &mut ContactManifold<ManifoldData, ContactData>,
     other_is_solid_cuboid: bool,
+    terrain_is_solid_cuboid: bool,
 ) -> bool {
     let physics_state = crate::get_physics_state();
 
@@ -1341,7 +1440,11 @@ fn is_interior_collision<ManifoldData: Default + Clone, ContactData: Default + C
             || (collider_info_1.unwrap().local_bounds_min.unwrap()
                 != collider_info_1.unwrap().local_bounds_max.unwrap())
         {
-            let world_p1 = (point.local_p1 * 0.997 + center).as_dvec3() + center_of_mass_1;
+            // A voxel-size inward scale would erase real outer faces on a
+            // larger rectangle. Check its actual surface and the fresh terrain
+            // beyond it, including cells outside the conservative query clip.
+            let local_p1 = if terrain_is_solid_cuboid { point.local_p1 } else { point.local_p1 * 0.997 };
+            let world_p1 = (local_p1 + center).as_dvec3() + center_of_mass_1;
             let normal1 = manifold.local_n1.as_dvec3();
 
             let displaced_p1 = world_p1 + normal1 * 0.01;

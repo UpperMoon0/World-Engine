@@ -143,6 +143,59 @@ public final class WorldEngineGameTests {
     }
 
     @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", timeoutTicks = 240)
+    public static void terrainRectangleRebuildsAfterSupportRemoval(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        for (int x = 0; x <= 4; x++) for (int z = 0; z <= 4; z++) for (int y = 1; y <= 4; y++) {
+            level.setBlock(helper.absolutePos(new BlockPos(x, y, z)), Blocks.AIR.defaultBlockState(), 3);
+        }
+        List<BlockPos> floor = new java.util.ArrayList<>();
+        for (int x = 1; x <= 3; x++) for (int z = 1; z <= 3; z++) {
+            BlockPos pos = helper.absolutePos(new BlockPos(x, 1, z));
+            level.setBlock(pos, Blocks.STONE.defaultBlockState(), 3);
+            floor.add(pos);
+        }
+        BlockPos block = helper.absolutePos(new BlockPos(2, 2, 2));
+        level.setBlock(block, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+        ServerSubLevel body = SubLevelAssemblyHelper.assembleBlocks(level, block, List.of(block),
+                new BoundingBox3i(block.getX(), block.getY(), block.getZ(), block.getX(), block.getY(), block.getZ()));
+        double[] supportedY = new double[1];
+        helper.startSequence().thenIdle(160).thenExecute(() -> {
+            supportedY[0] = body.logicalPose().position().y();
+            if (body.isRemoved() || Math.abs(supportedY[0] - (block.getY() + 0.5)) > 0.15) {
+                helper.fail("Body did not settle on the terrain rectangle");
+            }
+            if (((WorldEnginePhysicsSystem) SubLevelPhysicsSystem.require(level)).worldengine$activeBodies().contains(body)) {
+                helper.fail("Rectangle support-removal fixture was still active");
+            }
+            for (BlockPos pos : floor) level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
+        }).thenIdle(40).thenExecute(() -> {
+            double y = body.logicalPose().position().y();
+            if (body.isRemoved() || !Double.isFinite(y) || y >= supportedY[0] - 0.5) {
+                helper.fail("Body retained collision with a removed terrain rectangle");
+            }
+        }).thenSucceed();
+    }
+
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", timeoutTicks = 180)
+    public static void partialTerrainRetainsHalfHeightSupport(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos slab = helper.absolutePos(new BlockPos(2, 1, 2));
+        level.setBlock(slab, Blocks.STONE_SLAB.defaultBlockState(), 3);
+        BlockPos block = slab.above(2);
+        level.setBlock(block, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+        ServerSubLevel body = SubLevelAssemblyHelper.assembleBlocks(level, block, List.of(block),
+                new BoundingBox3i(block.getX(), block.getY(), block.getZ(), block.getX(), block.getY(), block.getZ()));
+        helper.startSequence().thenIdle(120).thenExecute(() -> {
+            double y = body.logicalPose().position().y();
+            if (body.isRemoved() || !Double.isFinite(y) || Math.abs(y - (slab.getY() + 1.0)) > 0.1) {
+                helper.fail("Partial terrain was treated as a full cube or lost its collision shape");
+            }
+        }).thenSucceed();
+    }
+
+    @PrefixGameTestTemplate(false)
     @GameTest(template = "physicstest.gravity", timeoutTicks = 80)
     public static void ballisticGravityUsesServerTickTime(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();

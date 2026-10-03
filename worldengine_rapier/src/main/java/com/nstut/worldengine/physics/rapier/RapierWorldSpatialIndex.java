@@ -6,6 +6,7 @@ import dev.ryanhcode.sable.companion.math.BoundingBox3dc;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.IntSet;
+import it.unimi.dsi.fastutil.ints.IntArrayFIFOQueue;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
@@ -15,7 +16,6 @@ import org.joml.Vector3d;
 import org.joml.Vector3dc;
 
 import java.util.ArrayList;
-import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -55,6 +55,12 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
     private final IntSet dirtyInteractionBodies = new IntOpenHashSet();
     private final IntSet affectedInteractionBodies = new IntOpenHashSet();
     private final IntSet visitedInteractionBodies = new IntOpenHashSet();
+    // Reconciliation runs on the server thread. Migration/merge paths enqueue
+    // dirty bodies for the next pass and never recursively reconcile this index.
+    private final IntSet movedBodiesScratch = new IntOpenHashSet();
+    private final List<ServerSubLevel> componentScratch = new ArrayList<>();
+    private final IntArrayFIFOQueue pendingScratch = new IntArrayFIFOQueue();
+    private final List<Migration> migrationsScratch = new ArrayList<>();
     private final RapierPhysicsPipeline pipeline;
     private RapierPhysicsRegion defaultRegion;
     private long currentTick;
@@ -277,16 +283,18 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
         visited.clear();
         for (int seed : affected) {
             if (!visited.add(seed)) continue;
-            List<ServerSubLevel> component = new ArrayList<>();
-            ArrayDeque<Integer> pending = new ArrayDeque<>();
-            pending.add(seed);
+            List<ServerSubLevel> component = this.componentScratch;
+            component.clear();
+            IntArrayFIFOQueue pending = this.pendingScratch;
+            pending.clear();
+            pending.enqueue(seed);
             while (!pending.isEmpty()) {
-                int id = pending.removeFirst();
+                int id = pending.dequeueInt();
                 RapierPhysicsRegion region = this.subLevelRegionMap.get(id);
                 ServerSubLevel body = region == null ? null : region.getSubLevel(id);
                 if (body != null && !body.isRemoved()) component.add(body);
                 for (int neighbor : this.interactionGraph.neighbors(id)) {
-                    if (visited.add(neighbor)) pending.addLast(neighbor);
+                    if (visited.add(neighbor)) pending.enqueue(neighbor);
                 }
             }
             if (component.size() < 2) continue;
@@ -310,11 +318,14 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
         if (this.dirtyInteractionBodies.isEmpty() && this.interactionHolds.isEmpty()) {
             return;
         }
-        IntSet movedBodies = new IntOpenHashSet(this.dirtyInteractionBodies);
+        IntSet movedBodies = this.movedBodiesScratch;
+        movedBodies.clear();
+        movedBodies.addAll(this.dirtyInteractionBodies);
         this.dirtyInteractionBodies.clear();
         this.interactionHolds.drainExpired(this.currentTick, movedBodies);
         this.updateInteractionGraph(movedBodies);
-        List<Migration> migrations = new ArrayList<>();
+        List<Migration> migrations = this.migrationsScratch;
+        migrations.clear();
         for (int id : movedBodies) {
             RapierPhysicsRegion source = this.subLevelRegionMap.get(id);
             if (source == null) continue;
@@ -403,6 +414,10 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
         this.affectedInteractionBodies.clear();
         this.visitedInteractionBodies.clear();
         this.dirtyInteractionBodies.clear();
+        this.movedBodiesScratch.clear();
+        this.componentScratch.clear();
+        this.pendingScratch.clear();
+        this.migrationsScratch.clear();
         this.defaultRegion = null;
     }
 }

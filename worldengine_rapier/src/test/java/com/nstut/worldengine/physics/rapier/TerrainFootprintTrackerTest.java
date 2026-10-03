@@ -5,8 +5,27 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class TerrainFootprintTrackerTest {
+    @Test
+    void sameSectionMotionReusesEnvelopeButBoundaryAndForcedRefreshDoNot() {
+        TerrainFootprintTracker tracker = new TerrainFootprintTracker();
+        var first = TerrainFootprintTracker.Envelope.fromWorldBounds(-15, 64, 1, -1, 70, 15);
+        assertTrue(tracker.needsRefresh(7, first));
+        var sameSections = TerrainFootprintTracker.Envelope.fromWorldBounds(-14, 65, 2, -2, 71, 14,
+                tracker.previousEnvelope(7));
+        assertSame(first, sameSections);
+        assertFalse(tracker.needsRefresh(7, sameSections));
+        var crossing = TerrainFootprintTracker.Envelope.fromWorldBounds(-17, 65, 2, -2, 71, 14, first);
+        assertNotSame(first, crossing);
+        assertTrue(tracker.needsRefresh(7, crossing));
+        tracker.forceDirty(7);
+        assertNull(tracker.previousEnvelope(7));
+        assertTrue(tracker.needsRefresh(7, crossing));
+    }
     @Test
     void unchangedEnvelopeDoesNotDirtyBodyAgain() {
         TerrainFootprintTracker tracker = new TerrainFootprintTracker();

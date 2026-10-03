@@ -74,6 +74,22 @@ to that interval. Profiled runs are never publication eligible. JFR allocation
 weights are sampled estimates, not a replacement for the exact server-thread
 allocation counter in the unprofiled comparison.
 
+Use Java 21 to summarize only the measured window:
+
+```sh
+java tools/JfrHotspots.java build/sable-comparison/<run>/<fixture>/profile.jfr
+```
+
+For native phase diagnosis, compile an explicit diagnostic library with
+`cargo build --release --features benchmark-profiler -p worldengine_rapier`, then
+pass its absolute path through `--native-profile`. This implies `--profile`,
+records the override library's hash in the frozen inputs, and labels the run
+`development-profiler-override`. The native log samples total step, Rapier
+broad/narrow/solver/CCD phases, registry synchronization and eviction work every
+128 scene steps, with epoch timestamps for filtering to the measured window.
+These timers and logging are compiled out when the feature is disabled. Never
+use a profiler library to make release-bundle performance claims.
+
 The Benchmark harness workflow accepts a `full` manual run on the PR branch:
 five paired trials of all fixtures, with 300 warmup and 300 measured ticks. Its
 JSON and launch logs are retained as an artifact. Automatic PR smoke runs cover

@@ -615,6 +615,8 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_step<'
 ) {
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         with_handle(handle, |scene| {
+            #[cfg(feature = "benchmark-profiler")]
+            let profile_start = std::time::Instant::now();
             crate::rope::tick(scene);
             crate::joints::tick(scene);
 
@@ -704,12 +706,32 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_step<'
                 }
                 sim.integration_parameters.dt = time_step as marten::Real;
             }
+            #[cfg(feature = "benchmark-profiler")]
+            let profile_after_solver = std::time::Instant::now();
             let mut sable = scene.sable_data.write().unwrap();
             let mut universe = scene.universe.write().unwrap();
             let mut sim = scene.sim_data.write().unwrap();
             let world_origin = *scene.world_origin.read().unwrap();
             sync_active_scene_bodies(&mut sim, &mut sable, &mut universe, world_origin);
+            #[cfg(feature = "benchmark-profiler")]
+            let profile_after_sync = std::time::Instant::now();
             check_scene_evictions(&mut sim, &mut sable, &mut universe, world_origin, scene.gravity);
+            #[cfg(feature = "benchmark-profiler")]
+            {
+                static SAMPLES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+                if SAMPLES.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 128 == 0
+                    && std::env::var("WE_NATIVE_PROFILE").as_deref() == Ok("true") {
+                    let ms = |duration: std::time::Duration| duration.as_secs_f64() * 1000.0;
+                    let counters = &sim.pipeline.counters;
+                    eprintln!("WE_NATIVE_PROFILE epoch_ms={} scene={} total_ms={:.4} solver_and_guard_ms={:.4} sync_ms={:.4} evict_ms={:.4} rapier_ms={:.4} broad_ms={:.4} narrow_ms={:.4} solver_ms={:.4} ccd_ms={:.4} bodies={} active={}",
+                        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(),
+                        handle, ms(profile_start.elapsed()), ms(profile_after_solver.duration_since(profile_start)),
+                        ms(profile_after_sync.duration_since(profile_after_solver)), ms(profile_after_sync.elapsed()),
+                        counters.step_time_ms(), counters.broad_phase_time_ms(), counters.narrow_phase_time_ms(),
+                        counters.solver_time_ms(), counters.ccd_time_ms(), sim.rigid_body_set.len(),
+                        sim.island_manager.active_bodies().count());
+                }
+            }
         });
     }));
 

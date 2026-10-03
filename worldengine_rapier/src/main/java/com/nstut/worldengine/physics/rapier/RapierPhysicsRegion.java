@@ -96,6 +96,10 @@ public class RapierPhysicsRegion implements PhysicsRegion {
         return this.terrainFootprintTracker.needsRefresh(id, envelope);
     }
 
+    TerrainFootprintTracker.Envelope previousTerrainEnvelope(int id) {
+        return this.terrainFootprintTracker.previousEnvelope(id);
+    }
+
     int[] drainDirtyTerrainBodies() {
         return this.terrainFootprintTracker.drainDirtyBodies();
     }

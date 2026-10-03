@@ -709,7 +709,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
                 minX, minY, minZ, maxX, maxY, maxZ));
     }
 
-    private TerrainFootprintTracker.Envelope terrainEnvelope(ServerSubLevel subLevel) {
+    private TerrainFootprintTracker.Envelope terrainEnvelope(ServerSubLevel subLevel,
+                                                             TerrainFootprintTracker.Envelope previous) {
         var bounds = subLevel.boundingBox();
         Vector3dc velocity = subLevel.latestLinearVelocity;
         double dx = velocity.x() * 2.0;
@@ -723,7 +724,7 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
                     bounds.minZ() + Math.min(0.0, dz) - 32.0,
                     bounds.maxX() + Math.max(0.0, dx) + 32.0,
                     bounds.maxY() + Math.max(0.0, dy) + 32.0,
-                    bounds.maxZ() + Math.max(0.0, dz) + 32.0);
+                    bounds.maxZ() + Math.max(0.0, dz) + 32.0, previous);
         }
 
         // A sublevel is registered before assembly/load populates its plot, so
@@ -731,7 +732,7 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         Vector3dc position = subLevel.logicalPose().position();
         return TerrainFootprintTracker.Envelope.fromWorldBounds(
                 position.x() - 32.0, position.y() - 32.0, position.z() - 32.0,
-                position.x() + 32.0, position.y() + 32.0, position.z() + 32.0);
+                position.x() + 32.0, position.y() + 32.0, position.z() + 32.0, previous);
     }
 
     void streamRegionTerrain(RapierPhysicsRegion region) {
@@ -739,7 +740,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         for (int id : region.drainDirtyTerrainBodies()) {
             ServerSubLevel subLevel = region.getSubLevel(id);
             if (subLevel != null && !subLevel.isRemoved()) {
-                TerrainFootprintTracker.Envelope envelope = this.terrainEnvelope(subLevel);
+                TerrainFootprintTracker.Envelope envelope = this.terrainEnvelope(subLevel,
+                        region.previousTerrainEnvelope(id));
                 // Pose updates mark the body as a cheap candidate every tick.
                 // Only allocate and diff the section set after its conservative
                 // swept section envelope actually changes.
@@ -756,20 +758,21 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         // their footprint under one reserved owner while body footprints stay
         // fully incremental.
         if (region == this.spatialIndex.getDefaultRegion()) {
-            LongSet desired = new LongOpenHashSet();
+            this.activeBoxes.removeIf(box -> !box.isActive());
+            this.activeRopes.removeIf(rope -> !rope.isActive());
+            LongSet desired = this.activeContraptions.isEmpty() && this.activeBoxes.isEmpty() && this.activeRopes.isEmpty()
+                    ? it.unimi.dsi.fastutil.longs.LongSets.EMPTY_SET : new LongOpenHashSet();
             for (KinematicContraption contraption : this.activeContraptions.keySet()) {
                 Vector3dc pos = contraption.sable$getPosition();
                 this.addTerrainRange(desired, pos.x() - 32.0, pos.y() - 32.0, pos.z() - 32.0,
                         pos.x() + 32.0, pos.y() + 32.0, pos.z() + 32.0);
             }
             BoundingBox3d objectBounds = new BoundingBox3d();
-            this.activeBoxes.removeIf(box -> !box.isActive());
             for (BoxPhysicsObject box : this.activeBoxes) {
                 box.getBoundingBox(objectBounds);
                 this.addTerrainRange(desired, objectBounds.minX(), objectBounds.minY(), objectBounds.minZ(),
                         objectBounds.maxX(), objectBounds.maxY(), objectBounds.maxZ());
             }
-            this.activeRopes.removeIf(rope -> !rope.isActive());
             for (RopePhysicsObject rope : this.activeRopes) {
                 rope.getBoundingBox(objectBounds);
                 this.addTerrainRange(desired, objectBounds.minX(), objectBounds.minY(), objectBounds.minZ(),
@@ -1355,6 +1358,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     private void processCollisionEffects() {
         this.recentCollisions.long2LongEntrySet().removeIf(entry -> this.level.getGameTime() - entry.getLongValue() > 2);
 
+        if (this.spatialIndex == null || this.steppedRegions.isEmpty()) return;
+
         final Vector3d localPointA = new Vector3d();
         final Vector3d localPointB = new Vector3d();
         final Vector3d localNormalA = new Vector3d();
@@ -1363,9 +1368,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         final Vector3d globalPointA = new Vector3d();
         final Vector3d globalPointB = new Vector3d();
 
-        if (this.spatialIndex == null) return;
         for (RapierPhysicsRegion region : List.copyOf(this.steppedRegions)) {
             final double[] collisions = Rapier3D.clearCollisions(region.getSceneHandle());
+            if (collisions.length == 0) continue;
 
             final BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
             final BlockPos.MutableBlockPos cornerPos = new BlockPos.MutableBlockPos();

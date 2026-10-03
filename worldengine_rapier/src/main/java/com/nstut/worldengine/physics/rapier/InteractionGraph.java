@@ -119,13 +119,16 @@ final class InteractionGraph {
             if (reciprocal != null) reciprocal.remove(id);
         }
         for (int neighbor : candidates) {
+            // Surviving edges were already tested against these exact fresh
+            // bounds above. Their reciprocal edge is already present.
+            if (neighbors.contains(neighbor)) continue;
             StoredBounds b = bounds.get(neighbor);
             if (b == null || !fresh.intersects(b)) continue;
             neighbors.add(neighbor);
             IntSet reciprocal = edges.get(neighbor);
             if (reciprocal == null) { reciprocal = new IntOpenHashSet(); edges.put(neighbor, reciprocal); }
             reciprocal.add(id);
+            affected.add(neighbor);
         }
-        affected.addAll(neighbors);
     }
 }

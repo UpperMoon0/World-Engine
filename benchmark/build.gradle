@@ -29,6 +29,13 @@ neoForge {
                 jvmArgument "-XX:StartFlightRecording=filename=${gameDirectory.get().asFile}/profile.jfr,settings=profile,dumponexit=true"
                 jvmArgument '-XX:FlightRecorderOptions=stackdepth=128'
             }
+            def nativeProfile = providers.environmentVariable('WE_BENCH_NATIVE_PROFILE_PATH').getOrElse('')
+            if (engine == 'worldengine' && !nativeProfile.isBlank()) {
+                if (providers.environmentVariable('WE_BENCH_PROFILE').getOrElse('false') != 'true') {
+                    throw new GradleException('Development native overrides require a diagnostic profile run')
+                }
+                systemProperty 'worldengine.rapier.nativePath', nativeProfile
+            }
             systemProperty 'we.benchmark.engine', engine
         }
     }

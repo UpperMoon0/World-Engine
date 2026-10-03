@@ -12,6 +12,11 @@ final class TerrainFootprintTracker {
 
         static Envelope fromWorldBounds(double minX, double minY, double minZ,
                                         double maxX, double maxY, double maxZ) {
+            return fromWorldBounds(minX, minY, minZ, maxX, maxY, maxZ, null);
+        }
+
+        static Envelope fromWorldBounds(double minX, double minY, double minZ,
+                                        double maxX, double maxY, double maxZ, Envelope previous) {
             if (!Double.isFinite(minX) || !Double.isFinite(minY) || !Double.isFinite(minZ)
                     || !Double.isFinite(maxX) || !Double.isFinite(maxY) || !Double.isFinite(maxZ)) {
                 return EMPTY;
@@ -45,6 +50,9 @@ final class TerrainFootprintTracker {
                     || sizeZ > 4096L / (sizeX * sizeY)) {
                 return EMPTY;
             }
+            if (previous != null && previous.minX == sectionMinX && previous.minY == sectionMinY
+                    && previous.minZ == sectionMinZ && previous.maxX == sectionMaxX
+                    && previous.maxY == sectionMaxY && previous.maxZ == sectionMaxZ) return previous;
             return new Envelope(sectionMinX, sectionMinY, sectionMinZ,
                     sectionMaxX, sectionMaxY, sectionMaxZ);
         }
@@ -56,6 +64,8 @@ final class TerrainFootprintTracker {
 
     private final Int2ObjectMap<Envelope> envelopes = new Int2ObjectOpenHashMap<>();
     private final IntSet dirtyBodies = new IntOpenHashSet();
+
+    Envelope previousEnvelope(int id) { return this.envelopes.get(id); }
 
     void markDirty(int id) {
         this.dirtyBodies.add(id);

@@ -142,10 +142,17 @@ def main():
     parser.add_argument("--ticks", type=int, default=100)
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--profile", action="store_true", help="Record JFR diagnostics; results are not publication eligible")
+    parser.add_argument("--native-profile", type=Path,
+                        help="Use a benchmark-profiler native library; implies --profile and freezes its hash")
     parser.add_argument("--scenarios", nargs="+", choices=SCENARIOS, default=list(SCENARIOS))
     args = parser.parse_args()
     if min(args.trials, args.warmup, args.ticks, args.timeout) <= 0:
         parser.error("All counts/timeouts must be positive")
+    if args.native_profile:
+        args.native_profile = args.native_profile.resolve()
+        if not args.native_profile.is_file():
+            parser.error("Native profiler library does not exist")
+        args.profile = True
     root = Path(__file__).resolve().parents[1]
     stamp = f"{int(time.time())}-{os.getpid()}"
     evidence = root / "build" / "sable-comparison" / stamp
@@ -162,8 +169,16 @@ def main():
             common.extend(["-x", f":worldengine_rapier:{task}"])
     env = os.environ.copy()
     env["WE_BENCH_PROFILE"] = "true" if args.profile else "false"
+    env["WE_BENCH_NATIVE_PROFILE_PATH"] = str(args.native_profile) if args.native_profile else ""
+    env["WE_NATIVE_PROFILE"] = "true" if args.native_profile else "false"
     metadata = dict(schema=1, host=platform.platform(), runId=stamp, pass_=False,
-                    nativeMode="checked-in-release-bundle", profiled=args.profile)
+                    nativeMode="development-profiler-override" if args.native_profile else "checked-in-release-bundle",
+                    profiled=args.profile)
+    def capture_inputs():
+        captured = fingerprint(root)
+        if args.native_profile:
+            captured["developmentNative:" + str(args.native_profile)] = hashlib.sha256(args.native_profile.read_bytes()).hexdigest()
+        return captured
     runs = []
     try:
         metadata["sourceHead"] = subprocess.check_output(
@@ -177,7 +192,7 @@ def main():
                          ":neoforge:classes", ":worldengine_rapier:jar",
                          ":benchmark:prepareServerRun", *common],
                         root, env, evidence / f"prepare-{engine}.log", args.timeout)
-        frozen = fingerprint(root)
+        frozen = capture_inputs()
         (evidence / "inputs.json").write_text(json.dumps(frozen, indent=2))
         for trial in range(args.trials):
             for scenario in args.scenarios:
@@ -203,14 +218,14 @@ def main():
                     trial_env = env | dict(WE_BENCH_GAME_DIR=str(game), WE_BENCH_OUTPUT=str(output),
                         WE_BENCH_SCENARIO=scenario, WE_BENCH_RUN=name,
                         WE_BENCH_WARMUP=str(args.warmup), WE_BENCH_TICKS=str(args.ticks))
-                    if fingerprint(root) != frozen:
+                    if capture_inputs() != frozen:
                         raise RuntimeError("Frozen source/runtime changed before trial")
                     print(f"Starting {name}", flush=True)
                     run_command([wrapper, f"-PbenchmarkEngine={engine}", ":benchmark:runServer", *common],
                                 root, trial_env, game / "launch.log", args.timeout)
                     sample = json.loads(output.read_text())
                     validate(sample, engine, scenario, name, args.ticks)
-                    if fingerprint(root) != frozen:
+                    if capture_inputs() != frozen:
                         raise RuntimeError("Frozen source/runtime changed during trial")
                     pair[engine] = sample
                     runs.append(sample)

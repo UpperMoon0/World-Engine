@@ -64,7 +64,8 @@ def fingerprint(root):
                     "*/build/resources/main/**", "*/build/libs/*.jar"):
         paths.update(p for p in root.glob(pattern) if p.is_file() and "__pycache__" not in p.parts
                      and not (p.is_relative_to(root / "buildSrc" / "build")
-                              or p.is_relative_to(root / "buildSrc" / ".gradle")))
+                              or p.is_relative_to(root / "buildSrc" / ".gradle")
+                              or p.is_relative_to(root / "worldengine_rapier" / "src" / "main" / "rust" / "target")))
     return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
 
 

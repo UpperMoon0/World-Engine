@@ -92,6 +92,8 @@ final class InteractionGraph {
 
     void update(int id, double minX, double minY, double minZ, double maxX, double maxY, double maxZ, IntSet affected) {
         StoredBounds fresh = bounds.get(id);
+        boolean unchanged = fresh != null && fresh.minX == minX && fresh.minY == minY && fresh.minZ == minZ
+                && fresh.maxX == maxX && fresh.maxY == maxY && fresh.maxZ == maxZ;
         if (fresh == null) { fresh = new StoredBounds(); bounds.put(id, fresh); }
         fresh.set(minX, minY, minZ, maxX, maxY, maxZ);
         IntSet neighbors = edges.get(id);
@@ -100,6 +102,10 @@ final class InteractionGraph {
         visits.clear();
         neighbors.forEach(collectVisit);
         for (int i = 0; i < visits.size(); i++) affected.add(visits.getInt(i));
+        // Other bodies update reciprocal edges when their bounds change. An expired
+        // interaction hold still seeds component/migration checks, but identical
+        // bounds need no fresh cell or candidate scan.
+        if (unchanged) return;
         Range old = ranges.get(id);
         Range range = Range.of(minX, minY, minZ, maxX, maxY, maxZ, old);
         if (!java.util.Objects.equals(range, old)) {

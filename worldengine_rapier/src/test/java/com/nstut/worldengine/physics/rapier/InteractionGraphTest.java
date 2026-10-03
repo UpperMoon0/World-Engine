@@ -20,6 +20,11 @@ class InteractionGraphTest {
                 boxes.put(id, b);
                 graph.update(id, new InteractionGraph.Bounds(b[0], b[1], b[2], b[3], b[4], b[5]), new IntOpenHashSet());
             }
+            if (step % 3 == 0 && !boxes.isEmpty()) {
+                var unchanged = boxes.entrySet().iterator().next();
+                double[] b = unchanged.getValue();
+                graph.update(unchanged.getKey(), new InteractionGraph.Bounds(b[0], b[1], b[2], b[3], b[4], b[5]), new IntOpenHashSet());
+            }
             for (var left : boxes.entrySet()) {
                 Set<Integer> expected = new HashSet<>();
                 for (var right : boxes.entrySet()) {

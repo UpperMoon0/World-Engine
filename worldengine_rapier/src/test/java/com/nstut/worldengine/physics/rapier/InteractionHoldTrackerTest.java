@@ -6,6 +6,36 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class InteractionHoldTrackerTest {
+    @Test void expiryRenewalAndRemovalMatchIndependentClockModel() {
+        InteractionHoldTracker holds = new InteractionHoldTracker();
+        java.util.Map<Integer, Long> model = new java.util.HashMap<>();
+        java.util.Random random = new java.util.Random(471105);
+        for (long tick = 0; tick < 1200; tick++) {
+            int id = random.nextInt(32);
+            if (tick % 11 == 0) { holds.remove(id); model.remove(id); }
+            else { long expiry = tick + 1 + random.nextInt(40); holds.renew(id, expiry); model.put(id, expiry); }
+            IntOpenHashSet actual = new IntOpenHashSet();
+            java.util.Set<Integer> expected = new java.util.HashSet<>();
+            var iterator = model.entrySet().iterator();
+            while (iterator.hasNext()) {
+                var entry = iterator.next();
+                if (entry.getValue() <= tick) { expected.add(entry.getKey()); iterator.remove(); }
+            }
+            holds.drainExpired(tick, actual);
+            assertEquals(expected, actual, "tick " + tick);
+            // Renew just-expired bodies, as component reconciliation does, then
+            // verify no duplicate deadline causes a later false expiry.
+            for (int expired : expected) if ((expired & 1) == 0) {
+                holds.renew(expired, tick + 20); model.put(expired, tick + 20);
+            }
+            for (int candidate = 0; candidate < 32; candidate++) {
+                assertEquals(model.containsKey(candidate), holds.holds(candidate, tick), "tick " + tick + ", id " + candidate);
+            }
+        }
+        holds.clear();
+        assertTrue(holds.isEmpty());
+        for (int id = 0; id < 32; id++) assertFalse(holds.holds(id, 1200));
+    }
     @Test void repeatedRenewalExpiresAtLatestDeadline() {
         InteractionHoldTracker holds = new InteractionHoldTracker();
         IntOpenHashSet expired = new IntOpenHashSet();

@@ -1,5 +1,7 @@
 import unittest
-from benchmark_sable import compare_pair, quantiles, summarize, validate
+import tempfile
+from pathlib import Path
+from benchmark_sable import compare_pair, fingerprint, quantiles, summarize, validate
 
 
 def sample(engine="sable"):
@@ -18,6 +20,25 @@ def sample(engine="sable"):
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_generated_rust_outputs_do_not_hide_source_or_runtime_drift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "worldengine_rapier/src/main/rust/rapier/src/lib.rs"
+            generated = root / "worldengine_rapier/src/main/rust/target/release/deps/generated.rlib"
+            bundle = root / "worldengine_rapier/src/main/resources/natives.zip"
+            runtime = root / "common/build/classes/java/main/Runtime.class"
+            for path in (source, generated, bundle, runtime):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"original")
+            frozen = fingerprint(root)
+            generated.write_bytes(b"compiler cache changed")
+            self.assertEqual(frozen, fingerprint(root))
+            for path in (source, bundle, runtime):
+                with self.subTest(path=path):
+                    path.write_bytes(b"changed measured input")
+                    self.assertNotEqual(frozen, fingerprint(root))
+                    path.write_bytes(b"original")
+
     def test_late_scene_defaults_rejected(self):
         row = sample("worldengine")
         row["submittedSceneSettingsAtEnd"]["2"] = dict(

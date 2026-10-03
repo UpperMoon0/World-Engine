@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.IdentityHashMap;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -18,6 +20,49 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Fast, deterministic correctness tests for {@link SectionSpatialIndex}. */
 class SectionSpatialIndexTest {
+    @Test
+    void cachedRangesMatchIndependentMembershipOracleThroughMovementAndRemoval() {
+        SectionSpatialIndex<Object> index = new SectionSpatialIndex<>(PACKER);
+        Object[] bodies = java.util.stream.IntStream.range(0, 32).mapToObj(i -> new Object()).toArray();
+        Map<Object, int[]> ranges = new IdentityHashMap<>();
+        Random random = new Random(471104);
+        for (int step = 0; step < 1200; step++) {
+            Object body = bodies[random.nextInt(bodies.length)];
+            if (step % 13 == 0) {
+                index.remove(body);
+                ranges.remove(body);
+            } else {
+                int offset = step % 47 == 0 ? 1_700_000 : 0;
+                int x = random.nextInt(16) - 8 + offset, y = random.nextInt(8) - 4, z = random.nextInt(16) - 8;
+                int[] r = {x, y, z, x + random.nextInt(4), y + random.nextInt(3), z + random.nextInt(4)};
+                index.insertRange(body, r[0], r[1], r[2], r[3], r[4], r[5]);
+                LongOpenHashSet retained = index.sectionsOf(body);
+                index.insertRange(body, r[0], r[1], r[2], r[3], r[4], r[5]);
+                assertSame(retained, index.sectionsOf(body));
+                if (step % 17 == 0) {
+                    index.insert(body, new LongOpenHashSet(new long[]{PACKER.pack(100, 100, 100)}));
+                    index.insertRange(body, r[0], r[1], r[2], r[3], r[4], r[5]);
+                }
+                if (step % 19 == 0) {
+                    index.insertLarge(body);
+                    index.insertRange(body, r[0], r[1], r[2], r[3], r[4], r[5]);
+                    assertFalse(index.isLarge(body));
+                }
+                ranges.put(body, r);
+            }
+            int x = random.nextInt(16) - 8 + (step % 47 == 0 ? 1_700_000 : 0);
+            int y = random.nextInt(8) - 4, z = random.nextInt(16) - 8;
+            Set<Object> expected = new HashSet<>();
+            for (var entry : ranges.entrySet()) {
+                int[] r = entry.getValue();
+                if (r[0] <= x + 3 && r[3] >= x && r[1] <= y + 2 && r[4] >= y
+                        && r[2] <= z + 3 && r[5] >= z) expected.add(entry.getKey());
+            }
+            assertEquals(expected, new HashSet<>(index.querySections(x, y, z, x + 3, y + 2, z + 3, ignored -> true)), "step " + step);
+            assertTrue(index.querySections(x, y, z, x + 3, y + 2, z + 3, ignored -> false).isEmpty());
+        }
+    }
+
     private static final SectionSpatialIndex.Packer PACKER =
             (x, y, z) -> ((long) (x & 0x3FFFFF) << 42) | ((long) (z & 0x3FFFFF) << 20)
                     | ((long) y & 0xFFFFF);

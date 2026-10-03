@@ -4,7 +4,6 @@ import dev.ryanhcode.sable.companion.math.BoundingBox3dc;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import java.util.List;
 
 /**
@@ -27,7 +26,6 @@ public final class WorldEngineBodyIndex {
             new SectionSpatialIndex<>(WorldEngineBodyIndex::packSection);
     private final BoundingBox3i scratchChunks = new BoundingBox3i();
     private final BodyFilter filter = new BodyFilter();
-    private LongOpenHashSet sectionsScratch = new LongOpenHashSet();
 
     public void update(ServerSubLevel body) {
         BoundingBox3i chunks = body.boundingBox().chunkBoundsFrom(this.scratchChunks);
@@ -36,14 +34,8 @@ public final class WorldEngineBodyIndex {
             return;
         }
 
-        LongOpenHashSet previous = this.index.sectionsOf(body);
-        this.sectionsScratch.clear();
-        collectSections(chunks, this.sectionsScratch);
-        if (previous != null && previous.equals(this.sectionsScratch)) return;
-
-        LongOpenHashSet fresh = this.sectionsScratch;
-        this.sectionsScratch = new LongOpenHashSet();
-        this.index.insert(body, fresh);
+        this.index.insertRange(body, chunks.minX(), chunks.minY(), chunks.minZ(),
+                chunks.maxX(), chunks.maxY(), chunks.maxZ());
     }
 
     public void remove(ServerSubLevel body) {
@@ -83,16 +75,6 @@ public final class WorldEngineBodyIndex {
         @Override
         public boolean test(ServerSubLevel body) {
             return !body.isRemoved() && body.boundingBox().intersects(this.bounds);
-        }
-    }
-
-    private static void collectSections(BoundingBox3i chunks, LongOpenHashSet dest) {
-        for (int x = chunks.minX(); x <= chunks.maxX(); x++) {
-            for (int z = chunks.minZ(); z <= chunks.maxZ(); z++) {
-                for (int y = chunks.minY(); y <= chunks.maxY(); y++) {
-                    dest.add(packSection(x, y, z));
-                }
-            }
         }
     }
 

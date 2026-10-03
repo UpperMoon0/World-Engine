@@ -60,6 +60,9 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
     private final IntSet movedBodiesScratch = new IntOpenHashSet();
     private final List<ServerSubLevel> componentScratch = new ArrayList<>();
     private final IntArrayList pendingScratch = new IntArrayList();
+    private final java.util.function.IntConsumer enqueueNeighbor = neighbor -> {
+        if (this.visitedInteractionBodies.add(neighbor)) this.pendingScratch.add(neighbor);
+    };
     private final List<Migration> migrationsScratch = new ArrayList<>();
     private final RapierPhysicsPipeline pipeline;
     private RapierPhysicsRegion defaultRegion;
@@ -295,10 +298,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
                 RapierPhysicsRegion region = this.subLevelRegionMap.get(id);
                 ServerSubLevel body = region == null ? null : region.getSubLevel(id);
                 if (body != null && !body.isRemoved()) component.add(body);
-                for (var neighborIterator = this.interactionGraph.neighbors(id).iterator(); neighborIterator.hasNext();) {
-                    int neighbor = neighborIterator.nextInt();
-                    if (visited.add(neighbor)) pending.add(neighbor);
-                }
+                this.interactionGraph.neighbors(id).forEach(this.enqueueNeighbor);
             }
             if (component.size() < 2) continue;
             RapierPhysicsRegion target = this.getRegion(component.getFirst());

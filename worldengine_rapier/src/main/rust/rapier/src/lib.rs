@@ -2016,39 +2016,11 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_clearC
     let arr: Vec<jdouble> = with_handle(handle, |scene| {
         let mut reported = scene.reported_collisions.lock();
 
-        let max_collisions = 100;
-
-        reported.truncate(max_collisions);
+        reported.truncate(MAX_REPORTED_COLLISIONS);
         let mut arr: Vec<jdouble> = Vec::with_capacity(reported.len() * 15);
 
         for collision in reported.iter() {
-            let body_a = if let Some(id) = collision.body_a {
-                id as jdouble
-            } else {
-                -1.0
-            };
-
-            let body_b = if let Some(id) = collision.body_b {
-                id as jdouble
-            } else {
-                -1.0
-            };
-
-            arr.push(body_a);
-            arr.push(body_b);
-            arr.push(collision.force_amount as jdouble);
-            arr.push(collision.local_normal_a.x as jdouble);
-            arr.push(collision.local_normal_a.y as jdouble);
-            arr.push(collision.local_normal_a.z as jdouble);
-            arr.push(collision.local_normal_b.x as jdouble);
-            arr.push(collision.local_normal_b.y as jdouble);
-            arr.push(collision.local_normal_b.z as jdouble);
-            arr.push(collision.local_point_a.x as jdouble);
-            arr.push(collision.local_point_a.y as jdouble);
-            arr.push(collision.local_point_a.z as jdouble);
-            arr.push(collision.local_point_b.x as jdouble);
-            arr.push(collision.local_point_b.y as jdouble);
-            arr.push(collision.local_point_b.z as jdouble);
+            arr.extend_from_slice(&collision_values(collision));
         }
 
         reported.clear();
@@ -2061,6 +2033,92 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_clearC
         .unwrap();
 
     double_array
+}
+
+const MAX_REPORTED_COLLISIONS: usize = 100;
+const COLLISION_RECORD_BYTES: usize = 15 * std::mem::size_of::<f64>();
+
+fn collision_values(c: &ReportedCollision) -> [f64; 15] {
+    [c.body_a.map_or(-1.0, |id| id as f64), c.body_b.map_or(-1.0, |id| id as f64),
+     c.force_amount, c.local_normal_a.x, c.local_normal_a.y, c.local_normal_a.z,
+     c.local_normal_b.x, c.local_normal_b.y, c.local_normal_b.z,
+     c.local_point_a.x, c.local_point_a.y, c.local_point_a.z,
+     c.local_point_b.x, c.local_point_b.y, c.local_point_b.z]
+}
+
+fn drain_collision_bytes(reported: &mut Vec<ReportedCollision>, output: &mut [u8]) -> jint {
+    // Reject undersized storage without losing events. This also bounds every
+    // write before the first mutation and avoids assuming pointer alignment.
+    if output.len() < MAX_REPORTED_COLLISIONS * COLLISION_RECORD_BYTES { return -1; }
+    let count = reported.len().min(MAX_REPORTED_COLLISIONS);
+    for (record, collision) in reported.iter().take(count).enumerate() {
+        for (field, value) in collision_values(collision).iter().enumerate() {
+            let offset = record * COLLISION_RECORD_BYTES + field * 8;
+            output[offset..offset + 8].copy_from_slice(&value.to_ne_bytes());
+        }
+    }
+    reported.clear(); // Retain the legacy 100-event reporting limit and drain policy.
+    count as jint
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_writeCollisions<'local>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    buffer: jni::objects::JByteBuffer<'local>,
+) -> jint {
+    let capacity = env.get_direct_buffer_capacity(&buffer).unwrap_or(0);
+    if capacity < MAX_REPORTED_COLLISIONS * COLLISION_RECORD_BYTES { return -1; }
+    let Ok(address) = env.get_direct_buffer_address(&buffer) else { return -1; };
+    if address.is_null() { return -1; }
+    let output = unsafe { std::slice::from_raw_parts_mut(address, capacity) };
+    with_handle(handle, |scene| drain_collision_bytes(&mut scene.reported_collisions.lock(), output))
+}
+
+#[cfg(test)]
+mod collision_buffer_tests {
+    use super::*;
+
+    fn event(id: LevelColliderID) -> ReportedCollision {
+        ReportedCollision { body_a: Some(id), body_b: None, force_amount: 3.5,
+            local_normal_a: DVec3::new(4.0, 5.0, 6.0), local_normal_b: DVec3::new(7.0, 8.0, 9.0),
+            local_point_a: DVec3::new(10.0, 11.0, 12.0), local_point_b: DVec3::new(13.0, 14.0, 15.0) }
+    }
+
+    #[test]
+    fn direct_collision_layout_preserves_ids_sentinel_and_all_fields() {
+        let mut reported = vec![event(12345)];
+        let mut output = vec![0xaa; MAX_REPORTED_COLLISIONS * COLLISION_RECORD_BYTES + 8];
+        assert_eq!(drain_collision_bytes(&mut reported, &mut output), 1);
+        let expected = [12345.0_f64, -1.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0];
+        for (index, value) in expected.iter().enumerate() {
+            assert_eq!(&output[index * 8..index * 8 + 8], &value.to_ne_bytes());
+        }
+        assert!(output[COLLISION_RECORD_BYTES..].iter().all(|&b| b == 0xaa));
+        assert!(reported.is_empty());
+    }
+
+    #[test]
+    fn insufficient_collision_buffer_preserves_events_and_storage() {
+        let mut reported = vec![event(1)];
+        let mut output = vec![0xaa; MAX_REPORTED_COLLISIONS * COLLISION_RECORD_BYTES - 1];
+        assert_eq!(drain_collision_bytes(&mut reported, &mut output), -1);
+        assert_eq!(reported.len(), 1);
+        assert!(output.iter().all(|&b| b == 0xaa));
+    }
+
+    #[test]
+    fn collision_buffer_retains_legacy_limit_and_drains_once() {
+        let mut reported: Vec<_> = (0..101).map(event).collect();
+        let mut output = vec![0xaa; MAX_REPORTED_COLLISIONS * COLLISION_RECORD_BYTES];
+        assert_eq!(drain_collision_bytes(&mut reported, &mut output), 100);
+        assert!(reported.is_empty());
+        assert_eq!(f64::from_ne_bytes(output[99 * COLLISION_RECORD_BYTES..99 * COLLISION_RECORD_BYTES + 8].try_into().unwrap()), 99.0);
+        let before = output.clone();
+        assert_eq!(drain_collision_bytes(&mut reported, &mut output), 0);
+        assert_eq!(output, before);
+    }
 }
 
 /// Applies a force to a body

@@ -13,7 +13,7 @@ final class InteractionGraph {
         }
     }
     private record Cell(int x, int y, int z) {}
-    private record Range(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+    private record Range(int minX, int minY, int minZ, int maxX, int maxY, int maxZ, Cell[] cells) {
         static Range of(double minX, double minY, double minZ, double maxX, double maxY, double maxZ, Range previous) {
             int x = coordinate(minX), y = coordinate(minY), z = coordinate(minZ);
             int xx = coordinate(maxX), yy = coordinate(maxY), zz = coordinate(maxZ);
@@ -21,7 +21,11 @@ final class InteractionGraph {
             if (sx <= 0 || sy <= 0 || sz <= 0 || sx > 4096 || sy > 4096 / sx || sz > 4096 / (sx * sy)) return null;
             if (previous != null && previous.minX == x && previous.minY == y && previous.minZ == z
                     && previous.maxX == xx && previous.maxY == yy && previous.maxZ == zz) return previous;
-            return new Range(x, y, z, xx, yy, zz);
+            Cell[] cells = new Cell[(int) (sx * sy * sz)];
+            int index = 0;
+            for (long cx = x; cx <= xx; cx++) for (long cy = y; cy <= yy; cy++)
+                for (long cz = z; cz <= zz; cz++) cells[index++] = new Cell((int) cx, (int) cy, (int) cz);
+            return new Range(x, y, z, xx, yy, zz, cells);
         }
         private static int coordinate(double value) { return (int) Math.floor(value / 128.0); }
     }
@@ -65,18 +69,16 @@ final class InteractionGraph {
     }
 
     private void membership(Range range, int id, boolean add) {
-        for (int x = range.minX; x <= range.maxX; x++) for (int y = range.minY; y <= range.maxY; y++)
-            for (int z = range.minZ; z <= range.maxZ; z++) {
-                Cell key = new Cell(x, y, z);
-                IntSet members = cells.get(key);
-                if (add) {
-                    if (members == null) { members = new IntOpenHashSet(); cells.put(key, members); }
-                    members.add(id);
-                } else if (members != null) {
-                    members.remove(id);
-                    if (members.isEmpty()) cells.remove(key);
-                }
+        for (Cell key : range.cells) {
+            IntSet members = cells.get(key);
+            if (add) {
+                if (members == null) { members = new IntOpenHashSet(); cells.put(key, members); }
+                members.add(id);
+            } else if (members != null) {
+                members.remove(id);
+                if (members.isEmpty()) cells.remove(key);
             }
+        }
     }
 
     void update(int id, Bounds fresh, IntSet affected) {
@@ -103,11 +105,10 @@ final class InteractionGraph {
         candidates.clear();
         candidates.addAll(oversized);
         if (range == null) candidates.addAll(bounds.keySet());
-        else for (int x = range.minX; x <= range.maxX; x++) for (int y = range.minY; y <= range.maxY; y++)
-            for (int z = range.minZ; z <= range.maxZ; z++) {
-                IntSet members = cells.get(new Cell(x, y, z));
-                if (members != null) candidates.addAll(members);
-            }
+        else for (Cell key : range.cells) {
+            IntSet members = cells.get(key);
+            if (members != null) candidates.addAll(members);
+        }
         candidates.remove(id);
 
         // Remove stale reciprocal edges in place, then add exact current overlaps.

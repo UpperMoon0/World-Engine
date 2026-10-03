@@ -57,6 +57,97 @@ struct VoxelManifoldKey {
 struct VoxelManifoldWorkspace {
     previous: Vec<VoxelManifoldKey>,
     next: Vec<VoxelManifoldKey>,
+    merged_geometry_key: Option<(u64, IVec3, IVec3)>,
+    merged_box: Option<MergedVoxelBox>,
+}
+
+/// Exact union of a bounded, homogeneous rectangular collection of unit cubes.
+/// This does not approximate a concave body, merge materials, or reduce solver quality.
+#[derive(Clone, Copy, Debug)]
+struct MergedVoxelBox {
+    min: IVec3,
+    extents: IVec3,
+    block_id: u32,
+}
+
+fn is_plain_unit_cube(data: &marten::level::VoxelColliderData) -> bool {
+    !data.dynamic
+        && !data.is_fluid
+        && data.contact_method.is_none()
+        && data.get_user_data() == 0
+        && data.collision_boxes.as_slice() == [(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)]
+}
+
+fn merge_unit_voxels(
+    min: IVec3,
+    max: IVec3,
+    mut eligible_block: impl FnMut(IVec3) -> Option<Option<u32>>,
+) -> Option<MergedVoxelBox> {
+    let size = max.as_i64vec3() - min.as_i64vec3() + rapier3d::glamx::I64Vec3::ONE;
+    if size.min_element() <= 0
+        || size.max_element() > 4096
+        || size.x.checked_mul(size.y)?.checked_mul(size.z)? > 4096
+    {
+        return None;
+    }
+    let mut material = None;
+    let mut occupied_min = IVec3::splat(i32::MAX);
+    let mut occupied_max = IVec3::splat(i32::MIN);
+    let mut occupied = 0_i64;
+    for x in min.x..=max.x {
+        for y in min.y..=max.y {
+            for z in min.z..=max.z {
+                let pos = IVec3::new(x, y, z);
+                // Outer plot padding can be air. Invalid/partial/special voxels reject
+                // the entire merge; they must never be treated as absent geometry.
+                let Some(id) = eligible_block(pos)? else {
+                    continue;
+                };
+                if id == 0 || material.is_some_and(|previous| previous != id) {
+                    return None;
+                }
+                material = Some(id);
+                occupied_min = occupied_min.min(pos);
+                occupied_max = occupied_max.max(pos);
+                occupied += 1;
+            }
+        }
+    }
+    let block_id = material?;
+    let extents =
+        occupied_max.as_i64vec3() - occupied_min.as_i64vec3() + rapier3d::glamx::I64Vec3::ONE;
+    if extents.x * extents.y * extents.z != occupied {
+        return None;
+    }
+    Some(MergedVoxelBox {
+        min: occupied_min,
+        extents: extents.as_ivec3(),
+        block_id,
+    })
+}
+
+impl VoxelManifoldWorkspace {
+    fn merged_box_for(
+        &mut self,
+        version: u64,
+        min: IVec3,
+        max: IVec3,
+        eligible_block: impl FnMut(IVec3) -> Option<Option<u32>>,
+    ) -> Option<MergedVoxelBox> {
+        let key = (version, min, max);
+        if self.merged_geometry_key != Some(key) {
+            self.merged_geometry_key = Some(key);
+            self.merged_box = merge_unit_voxels(min, max, eligible_block);
+            #[cfg(feature = "benchmark-profiler")]
+            if std::env::var("WE_NATIVE_PROFILE").as_deref() == Ok("true") {
+                eprintln!(
+                    "WE_CUBOID_CACHE version={} source_min={:?} source_max={:?} merged={:?}",
+                    version, min, max, self.merged_box
+                );
+            }
+        }
+        self.merged_box
+    }
 }
 
 impl WorkspaceData for VoxelManifoldWorkspace {
@@ -140,6 +231,155 @@ mod tracking_tests {
         contact_manifold_cuboid_cuboid_shapes(&pose, &cube, &cube, 0.01, &mut manifold);
         assert!(!manifold.points.is_empty());
         manifold
+    }
+
+    #[test]
+    fn merged_shape_cache_invalidates_after_holes_material_or_bounds_changes() {
+        let mut workspace = VoxelManifoldWorkspace::default();
+        let min = IVec3::ZERO;
+        let max = IVec3::new(1, 0, 1);
+        assert!(
+            workspace
+                .merged_box_for(1, min, max, |_| Some(Some(9)))
+                .is_some()
+        );
+        // The same geometry must not rescan its owned chunks each substep.
+        assert!(
+            workspace
+                .merged_box_for(1, min, max, |_| panic!("Unchanged cache rescanned"))
+                .is_some()
+        );
+        assert!(
+            workspace
+                .merged_box_for(2, min, max, |pos| Some((pos != max).then_some(9)))
+                .is_none()
+        );
+        assert!(
+            workspace
+                .merged_box_for(3, min, max, |_| Some(Some(9)))
+                .is_some()
+        );
+        assert!(
+            workspace
+                .merged_box_for(4, min, max, |pos| Some(Some(if pos == max {
+                    10
+                } else {
+                    9
+                })))
+                .is_none()
+        );
+        assert!(
+            workspace
+                .merged_box_for(5, min, max, |_| Some(Some(9)))
+                .is_some()
+        );
+        assert!(
+            workspace
+                .merged_box_for(5, min, max + IVec3::X, |pos| Some(
+                    (pos != IVec3::X).then_some(9)
+                ))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn partial_shapes_and_special_materials_are_not_mergeable() {
+        let mut data = marten::level::VoxelColliderData {
+            collision_boxes: vec![(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)],
+            is_fluid: false,
+            friction: 1.0,
+            volume: 1.0,
+            restitution: 0.0,
+            contact_events: None,
+            contact_method: None,
+            dynamic: false,
+        };
+        assert!(is_plain_unit_cube(&data));
+        data.collision_boxes[0].4 = 0.5;
+        assert!(!is_plain_unit_cube(&data));
+        data.collision_boxes[0].4 = 1.0;
+        data.collision_boxes.push(data.collision_boxes[0]);
+        assert!(!is_plain_unit_cube(&data));
+        data.collision_boxes.pop();
+        data.friction = 0.2;
+        assert!(!is_plain_unit_cube(&data));
+        data.friction = 1.0;
+        data.restitution = 0.5;
+        assert!(!is_plain_unit_cube(&data));
+        data.restitution = 0.0;
+        data.is_fluid = true;
+        assert!(!is_plain_unit_cube(&data));
+        data.is_fluid = false;
+        data.dynamic = true;
+        assert!(!is_plain_unit_cube(&data));
+    }
+
+    #[test]
+    fn outer_air_padding_is_trimmed_but_partial_shapes_and_inner_holes_are_not() {
+        let min = IVec3::ZERO;
+        let max = IVec3::splat(2);
+        let cube = merge_unit_voxels(min, max, |pos| {
+            Some((pos.y == 1 && pos.x < 2 && pos.z < 2).then_some(9))
+        })
+        .unwrap();
+        assert_eq!(cube.min, IVec3::Y);
+        assert_eq!(cube.extents, IVec3::new(2, 1, 2));
+        assert!(
+            merge_unit_voxels(min, max, |pos| if pos == IVec3::ONE {
+                None
+            } else {
+                Some(Some(9))
+            })
+            .is_none()
+        );
+        assert!(
+            merge_unit_voxels(min, max, |pos| Some((pos != IVec3::ONE).then_some(9))).is_none()
+        );
+    }
+
+    #[test]
+    fn only_complete_homogeneous_unit_cube_unions_can_merge() {
+        for origin in [
+            IVec3::ZERO,
+            IVec3::new(-50, -60, -70),
+            IVec3::splat(28_000_000),
+        ] {
+            let max = origin + IVec3::new(1, 0, 1);
+            let merged = merge_unit_voxels(origin, max, |_| Some(Some(9))).unwrap();
+            assert_eq!(merged.min, origin);
+            assert_eq!(merged.extents, IVec3::new(2, 1, 2));
+            let center = origin.as_dvec3() + merged.extents.as_dvec3() * 0.5;
+            let half = merged.extents.as_dvec3() * 0.5;
+            // Every source cell lies in the merged box and every merged cell
+            // belongs to the source union: no filled hole or expanded volume.
+            for x in -1..=2 {
+                for y in -1..=1 {
+                    for z in -1..=2 {
+                        let point = (origin + IVec3::new(x, y, z)).as_dvec3() + DVec3::splat(0.5);
+                        let inside = (point - center).abs().cmplt(half).all();
+                        assert_eq!(
+                            inside,
+                            (0..=1).contains(&x) && y == 0 && (0..=1).contains(&z)
+                        );
+                    }
+                }
+            }
+            assert!(
+                merge_unit_voxels(origin, max, |pos| Some((pos != max).then_some(9))).is_none()
+            );
+            assert!(
+                merge_unit_voxels(origin, max, |pos| Some(Some(if pos == max {
+                    10
+                } else {
+                    9
+                })))
+                .is_none()
+            );
+        }
+        assert!(
+            merge_unit_voxels(IVec3::ZERO, IVec3::new(4096, 0, 0), |_| Some(Some(9))).is_none()
+        );
+        assert!(merge_unit_voxels(IVec3::ZERO, -IVec3::ONE, |_| Some(Some(9))).is_none());
     }
 
     #[test]
@@ -650,7 +890,7 @@ impl SableDispatcher {
 
         let mut manifold_index = 0;
 
-        let pairs = find_collision_pairs(
+        let mut pairs = find_collision_pairs(
             collider_info_2,
             collider_info_1,
             pos12,
@@ -659,6 +899,106 @@ impl SableDispatcher {
             false,
             &sable_data.octree_chunks,
         );
+
+        // Only the terrain/body path is eligible. Own chunks and a geometry
+        // version make this cache independent of other bodies and terrain edits.
+        let mut merged = None;
+        if collider_info_1.is_none()
+            && collider_info_2.has_own_chunks()
+            && collider_info_2.static_mount.is_none()
+            && collider_info_2.fake_velocities.is_none()
+        {
+            merged = workspace.merged_box_for(
+                collider_info_2.geometry_version,
+                collider_info_2.local_bounds_min.unwrap(),
+                collider_info_2.local_bounds_max.unwrap(),
+                |pos| {
+                    let chunk = chunk_access_2.get_chunk(pos.x >> 4, pos.y >> 4, pos.z >> 4)?;
+                    let (id, state) = chunk.get_block(pos.x & 15, pos.y & 15, pos.z & 15);
+                    #[cfg(feature = "benchmark-profiler")]
+                    {
+                        static VOXEL_SAMPLES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+                        if std::env::var("WE_NATIVE_PROFILE").as_deref() == Ok("true")
+                            && VOXEL_SAMPLES.fetch_add(1, Ordering::Relaxed) < 16 {
+                            let data = id.checked_sub(1).and_then(|index| physics_state.voxel_collider_map.voxel_colliders.get(index as usize)).and_then(Option::as_ref);
+                            eprintln!("WE_CUBOID_VOXEL pos={:?} id={} state={:?} data={:?}", pos, id, state, data.map(|data| (&data.collision_boxes, data.dynamic, data.is_fluid, data.friction, data.restitution, data.get_user_data(), data.contact_method.is_some())));
+                        }
+                    }
+                    if id == 0 {
+                        return Some(None);
+                    }
+                    if state == VoxelPhysicsState::Empty {
+                        return None;
+                    }
+                    let registry_data = physics_state
+                        .voxel_collider_map
+                        .voxel_colliders
+                        .get((id - 1) as usize)?
+                        .as_ref()?;
+                    if !is_plain_unit_cube(registry_data) {
+                        return None;
+                    }
+                    let data = physics_state.voxel_collider_map.get((id - 1) as usize, pos);
+                    if !is_plain_unit_cube(data.as_ref()?) {
+                        return None;
+                    }
+                    Some(Some(id))
+                },
+            );
+            // Static blocks may inspect the other voxel's identity in their
+            // hooks. Preserve the original per-voxel path for all such pairs.
+            if merged.is_some()
+                && pairs.iter().any(|(pos, _)| {
+                    let Some(chunk) = chunk_access_1.get_chunk(pos.x >> 4, pos.y >> 4, pos.z >> 4)
+                    else {
+                        return false;
+                    };
+                    let (id, _) = chunk.get_block(pos.x & 15, pos.y & 15, pos.z & 15);
+                    if id != 0
+                        && physics_state
+                            .voxel_collider_map
+                            .voxel_colliders
+                            .get((id - 1) as usize)
+                            .and_then(Option::as_ref)
+                            .is_some_and(|data| {
+                                data.dynamic || data.is_fluid || data.get_user_data() != 0
+                            })
+                    {
+                        return true;
+                    }
+                    id != 0
+                        && physics_state
+                            .voxel_collider_map
+                            .get((id - 1) as usize, *pos)
+                            .as_ref()
+                            .is_some_and(|data| {
+                                data.dynamic || data.is_fluid || data.get_user_data() != 0
+                            })
+                })
+            {
+                merged = None;
+            }
+            if let Some(cuboid) = merged {
+                // The original octree query supplies the conservative terrain
+                // candidates for the exact cube union. Visit each terrain voxel
+                // once against that union, instead of once per constituent cube.
+                pairs.sort_unstable_by_key(|(pos, _)| (pos.x, pos.y, pos.z));
+                pairs.dedup_by(|a, b| a.0 == b.0);
+                for (_, dynamic_pos) in &mut pairs {
+                    *dynamic_pos = cuboid.min;
+                }
+            }
+        }
+        let merged_boxes = merged.map(|cuboid| {
+            [(
+                0.0,
+                0.0,
+                0.0,
+                cuboid.extents.x as f32,
+                cuboid.extents.y as f32,
+                cuboid.extents.z as f32,
+            )]
+        });
 
         for (static_pos, dynamic_pos) in pairs.iter() {
             let static_x = static_pos.x;
@@ -727,8 +1067,13 @@ impl SableDispatcher {
                 if other_block_id == 0 {
                     continue;
                 }
+                debug_assert!(merged.is_none_or(|cuboid| cuboid.block_id == other_block_id));
 
-                if Self::can_ignore_collision(voxel_collider_state, other_voxel_collider_state) {
+                if if merged.is_some() {
+                    voxel_collider_state == Interior
+                } else {
+                    Self::can_ignore_collision(voxel_collider_state, other_voxel_collider_state)
+                } {
                     continue;
                 }
 
@@ -748,8 +1093,10 @@ impl SableDispatcher {
                     other_max_x,
                     other_max_y,
                     other_max_z,
-                ) in &other_voxel_collider_data.collision_boxes
-                {
+                ) in merged_boxes.as_ref().map_or(
+                    other_voxel_collider_data.collision_boxes.as_slice(),
+                    |boxes| boxes.as_slice(),
+                ) {
                     if manifolds.len() <= manifold_index {
                         manifolds.push(ContactManifold::new());
                     }
@@ -802,6 +1149,7 @@ impl SableDispatcher {
                         center_of_mass_1,
                         center_of_mass_2,
                         &mut new_manifold,
+                        merged.is_some(),
                     ) {
                         // No points means no solver constraint or collision event.
                         // Avoid retaining an empty manifold and allocating hook
@@ -984,6 +1332,7 @@ fn is_interior_collision<ManifoldData: Default + Clone, ContactData: Default + C
     center_of_mass_1: DVec3,
     center_of_mass_2: DVec3,
     manifold: &mut ContactManifold<ManifoldData, ContactData>,
+    other_is_solid_cuboid: bool,
 ) -> bool {
     let physics_state = crate::get_physics_state();
 
@@ -1002,7 +1351,12 @@ fn is_interior_collision<ManifoldData: Default + Clone, ContactData: Default + C
             }
         }
 
-        if collider_info_2.local_bounds_min.unwrap() != collider_info_2.local_bounds_max.unwrap() {
+        // A merged cuboid has only outer faces. Applying a voxel-size inward
+        // offset to a larger cuboid could incorrectly reject its real surface.
+        if !other_is_solid_cuboid
+            && collider_info_2.local_bounds_min.unwrap()
+                != collider_info_2.local_bounds_max.unwrap()
+        {
             let normal2 = manifold.local_n2.as_dvec3();
 
             // we have to "pull in the points" a tiny bit incase they're outside of the block slightly off-normal

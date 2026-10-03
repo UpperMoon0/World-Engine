@@ -7,6 +7,7 @@ on:
       - 'neoforge/src/main/java/**'
       - 'benchmark/**'
       - 'tools/*benchmark_sable.py'
+      - 'tools/test_jni_signatures.py'
       - 'settings.gradle'
       - '.github/workflows/benchmark-harness.yml'
   workflow_dispatch:
@@ -31,7 +32,7 @@ jobs:
           python-version: '3.13'
       - uses: gradle/actions/setup-gradle@v6
       - run: chmod +x gradlew
-      - run: python -m unittest discover -s tools -p 'test_benchmark_sable.py'
+      - run: python -m unittest discover -s tools -p 'test_*.py'
       - name: Real paired baseline and addon comparison
         env:
           FULL_COMPARISON: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' }}

@@ -27,6 +27,8 @@ public class RapierPhysicsRegion implements PhysicsRegion {
     private final Long2IntOpenHashMap terrainReferenceCounts = new Long2IntOpenHashMap();
     private final TerrainFootprintTracker terrainFootprintTracker = new TerrainFootprintTracker();
     private final LongSet changedTerrainSections = new LongOpenHashSet();
+    private final java.util.function.LongConsumer terrainAdded = this::retainTerrainSection;
+    private final java.util.function.LongConsumer terrainRemoved = this::releaseTerrainSection;
     private long scheduleGeneration;
     private long lastStepTick;
 
@@ -104,32 +106,34 @@ public class RapierPhysicsRegion implements PhysicsRegion {
         return this.terrainFootprintTracker.drainDirtyBodies();
     }
 
+    private void releaseTerrainSection(long key) {
+        int references = this.terrainReferenceCounts.addTo(key, -1) - 1;
+        if (references <= 0) {
+            this.terrainReferenceCounts.remove(key);
+            this.requiredTerrainSections.remove(key);
+            this.changedTerrainSections.add(key);
+            this.owner.removeTerrainInterest(this, key);
+        }
+    }
+
+    private void retainTerrainSection(long key) {
+        int references = this.terrainReferenceCounts.addTo(key, 1);
+        if (references == 0) {
+            this.requiredTerrainSections.add(key);
+            this.changedTerrainSections.add(key);
+            this.owner.addTerrainInterest(this, key);
+        }
+    }
+
     void replaceTerrainFootprint(int id, LongSet replacement) {
-        LongSet previous = this.terrainFootprints.remove(id);
-        if (previous != null) {
-            for (var keyIterator = previous.iterator(); keyIterator.hasNext();) {
-                long key = keyIterator.nextLong();
-                if (replacement.contains(key)) continue;
-                int references = this.terrainReferenceCounts.addTo(key, -1) - 1;
-                if (references <= 0) {
-                    this.terrainReferenceCounts.remove(key);
-                    this.requiredTerrainSections.remove(key);
-                    this.changedTerrainSections.add(key);
-                    this.owner.removeTerrainInterest(this, key);
-                }
-            }
+        LongSet stored = this.terrainFootprints.get(id);
+        if (stored == null) {
+            if (replacement.isEmpty()) return;
+            stored = new LongOpenHashSet(replacement.size());
+            this.terrainFootprints.put(id, stored);
         }
-        for (var keyIterator = replacement.iterator(); keyIterator.hasNext();) {
-            long key = keyIterator.nextLong();
-            if (previous != null && previous.contains(key)) continue;
-            int references = this.terrainReferenceCounts.addTo(key, 1);
-            if (references == 0) {
-                this.requiredTerrainSections.add(key);
-                this.changedTerrainSections.add(key);
-                this.owner.addTerrainInterest(this, key);
-            }
-        }
-        if (!replacement.isEmpty()) this.terrainFootprints.put(id, replacement);
+        TerrainFootprintDiff.update(stored, replacement, this.terrainRemoved, this.terrainAdded);
+        if (stored.isEmpty()) this.terrainFootprints.remove(id);
     }
 
     LongSet drainChangedTerrainSections() {
@@ -153,7 +157,7 @@ public class RapierPhysicsRegion implements PhysicsRegion {
         this.activeSubLevels.remove(id);
         this.owner.trackResidentBody(subLevel, false);
         this.terrainFootprintTracker.remove(id);
-        this.replaceTerrainFootprint(id, new LongOpenHashSet());
+        this.replaceTerrainFootprint(id, it.unimi.dsi.fastutil.longs.LongSets.EMPTY_SET);
     }
     
     private static final int INITIAL_COMMAND_BUFFER_CAPACITY = 4096;

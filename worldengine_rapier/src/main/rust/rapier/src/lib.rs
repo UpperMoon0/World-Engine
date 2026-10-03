@@ -717,6 +717,8 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_step<'
             let profile_after_sync = std::time::Instant::now();
             check_scene_evictions(&mut sim, &mut sable, &mut universe, world_origin, scene.gravity);
             #[cfg(feature = "benchmark-profiler")]
+            let profile_after_eviction = std::time::Instant::now();
+            #[cfg(feature = "benchmark-profiler")]
             {
                 static SAMPLES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
                 if SAMPLES.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 128 == 0
@@ -726,19 +728,38 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_step<'
                     let manifolds = sim.narrow_phase.contact_pairs().map(|pair| pair.manifolds.len()).sum::<usize>();
                     let contacts = sim.narrow_phase.contact_pairs().flat_map(|pair| pair.manifolds.iter())
                         .map(|manifold| manifold.data.solver_contacts.len()).sum::<usize>();
+                    let mut unique_contacts = std::collections::HashSet::new();
+                    let mut plain_contacts = 0;
+                    let mut duplicate_contacts = 0;
+                    for pair in sim.narrow_phase.contact_pairs() {
+                        for manifold in &pair.manifolds {
+                            if marten::level::VoxelColliderData::needs_hooks(manifold.data.user_data) { continue; }
+                            let normal = manifold.data.normal;
+                            for contact in &manifold.data.solver_contacts {
+                                plain_contacts += 1;
+                                let key = (pair.collider1, pair.collider2, [
+                                    contact.point.x.to_bits(), contact.point.y.to_bits(), contact.point.z.to_bits(),
+                                    normal.x.to_bits(), normal.y.to_bits(), normal.z.to_bits(),
+                                    contact.dist.to_bits(), contact.friction.to_bits(), contact.restitution.to_bits(),
+                                    contact.tangent_velocity.x.to_bits(), contact.tangent_velocity.y.to_bits(), contact.tangent_velocity.z.to_bits(),
+                                ]);
+                                if !unique_contacts.insert(key) { duplicate_contacts += 1; }
+                            }
+                        }
+                    }
                     let max_tree_depth = sable.level_colliders.values().filter_map(|info| info.octree.as_ref())
                         .map(|tree| tree.log_size).max().unwrap_or(0);
-                    eprintln!("WE_NATIVE_PROFILE epoch_ms={} scene={} total_ms={:.4} solver_and_guard_ms={:.4} sync_ms={:.4} evict_ms={:.4} rapier_ms={:.4} broad_ms={:.4} narrow_ms={:.4} solver_ms={:.4} ccd_ms={:.4} bodies={} active={} manifolds={} contacts={} iterations={} pgs={} stabilization={} min_island={} max_tree_depth={}",
+                    eprintln!("WE_NATIVE_PROFILE epoch_ms={} scene={} total_ms={:.4} solver_and_guard_ms={:.4} sync_ms={:.4} evict_ms={:.4} rapier_ms={:.4} broad_ms={:.4} narrow_ms={:.4} solver_ms={:.4} ccd_ms={:.4} bodies={} active={} manifolds={} contacts={} iterations={} pgs={} stabilization={} min_island={} max_tree_depth={} plain_contacts={} exact_duplicate_contacts={}",
                         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(),
-                        handle, ms(profile_start.elapsed()), ms(profile_after_solver.duration_since(profile_start)),
-                        ms(profile_after_sync.duration_since(profile_after_solver)), ms(profile_after_sync.elapsed()),
+                        handle, ms(profile_after_eviction.duration_since(profile_start)), ms(profile_after_solver.duration_since(profile_start)),
+                        ms(profile_after_sync.duration_since(profile_after_solver)), ms(profile_after_eviction.duration_since(profile_after_sync)),
                         counters.step_time_ms(), counters.broad_phase_time_ms(), counters.narrow_phase_time_ms(),
                         counters.solver_time_ms(), counters.ccd_time_ms(), sim.rigid_body_set.len(),
                         sim.island_manager.active_bodies().count(), manifolds, contacts,
                         sim.integration_parameters.num_solver_iterations,
                         sim.integration_parameters.num_internal_pgs_iterations,
                         sim.integration_parameters.num_internal_stabilization_iterations,
-                        sim.integration_parameters.min_island_size, max_tree_depth);
+                        sim.integration_parameters.min_island_size, max_tree_depth, plain_contacts, duplicate_contacts);
                 }
             }
         });

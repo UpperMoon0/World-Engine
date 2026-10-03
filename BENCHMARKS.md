@@ -90,6 +90,17 @@ broad/narrow/solver/CCD phases, registry synchronization and eviction work every
 These timers and logging are compiled out when the feature is disabled. Never
 use a profiler library to make release-bundle performance claims.
 
+The diagnostic build also records cuboid eligibility and contact counts. The
+terrain/body dispatcher can replace a bounded, complete, homogeneous union of
+plain unit cubes with its exact cuboid. Holes, partial shapes, custom collision
+hooks, fluids, dynamic voxel overrides and other body/kinematic paths retain
+per-voxel dispatch. Geometry-version and bounds changes invalidate the cache.
+Native tests cover eligibility and invalidation; a runtime test removes the
+center voxel from a supported cuboid and requires it to fall through the hole.
+`tools/test_jni_signatures.py` checks every Java native declaration against Rust
+argument counts and primitive argument types, including the voxel-registration
+call. These correctness checks do not establish a performance improvement.
+
 The Benchmark harness workflow accepts a `full` manual run on the PR branch:
 five paired trials of all fixtures, with 300 warmup and 300 measured ticks. Its
 JSON and launch logs are retained as an artifact. Automatic PR smoke runs cover

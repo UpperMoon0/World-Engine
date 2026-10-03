@@ -57,7 +57,6 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_newVox
     restitution: jdouble,
     is_fluid: jboolean,
     contact_events: JObject,
-    dynamic: jboolean,
 ) -> jint {
     let mut state = get_physics_state_mut();
 
@@ -96,7 +95,9 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_newVox
             restitution: restitution as Real,
             contact_events: global_ref,
             contact_method: global_method,
-            dynamic: dynamic > 0,
+            // Java's newVoxelCollider has five arguments. These entries are
+            // cached block-state shapes, not per-position dynamic overrides.
+            dynamic: false,
         }));
 
     next_index as jint

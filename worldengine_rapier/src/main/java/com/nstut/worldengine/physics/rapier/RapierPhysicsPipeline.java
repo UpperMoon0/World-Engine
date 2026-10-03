@@ -115,6 +115,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     private final Set<RapierPhysicsRegion> dirtyRegions = new ReferenceOpenHashSet<>();
     private final Set<RapierPhysicsRegion> steppedRegions = new ReferenceOpenHashSet<>();
     private final Set<RapierPhysicsRegion> workRegionsScratch = new ReferenceOpenHashSet<>();
+    // Server-thread streaming is not reentrant. Each region keeps its own
+    // footprint storage; it never retains this reusable desired-set buffer.
+    private final LongSet terrainFootprintScratch = new LongOpenHashSet();
     private final List<RegionStep> parallelRegionsScratch = new ArrayList<>();
     private final ResidentBodyTracker<ServerSubLevel> residentBodies = new ResidentBodyTracker<>();
     private final PriorityQueue<ScheduledRegion> scheduledRegions = new PriorityQueue<>(Comparator.comparingLong(ScheduledRegion::tick));
@@ -746,7 +749,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
                 // Only allocate and diff the section set after its conservative
                 // swept section envelope actually changes.
                 if (!region.terrainFootprintNeedsRefresh(id, envelope)) continue;
-                LongSet desired = new LongOpenHashSet();
+                LongSet desired = this.terrainFootprintScratch;
+                desired.clear();
                 this.addTerrainRange(desired, envelope);
                 region.replaceTerrainFootprint(id, desired);
             } else {

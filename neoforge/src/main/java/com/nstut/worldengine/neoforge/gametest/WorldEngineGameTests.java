@@ -96,6 +96,49 @@ public final class WorldEngineGameTests {
     }
 
     @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", timeoutTicks = 300)
+    public static void cuboidWithNewCenterHoleFallsPastItsFormerSupport(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        for (int x = 0; x <= 4; x++) for (int z = 0; z <= 4; z++) {
+            for (int y = 1; y <= 4; y++) {
+                level.setBlock(helper.absolutePos(new BlockPos(x, y, z)), Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
+        BlockPos pillar = helper.absolutePos(new BlockPos(2, 1, 2));
+        level.setBlock(pillar, Blocks.STONE.defaultBlockState(), 3);
+        List<BlockPos> blocks = new java.util.ArrayList<>();
+        for (int x = 1; x <= 3; x++) for (int z = 1; z <= 3; z++) {
+            BlockPos block = helper.absolutePos(new BlockPos(x, 2, z));
+            level.setBlock(block, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+            blocks.add(block);
+        }
+        BlockPos min = blocks.getFirst(), max = blocks.getLast();
+        ServerSubLevel body = SubLevelAssemblyHelper.assembleBlocks(level, min, blocks,
+                new BoundingBox3i(min.getX(), min.getY(), min.getZ(), max.getX(), max.getY(), max.getZ()));
+        double[] supportedY = new double[1];
+        helper.startSequence().thenIdle(160).thenExecute(() -> {
+            supportedY[0] = body.logicalPose().position().y();
+            if (body.isRemoved() || Math.abs(supportedY[0] - (pillar.getY() + 1.5)) > 0.15) {
+                helper.fail("Full cuboid did not settle on its center pillar");
+            }
+            // Mass coordinates identify the middle voxel in the assembled plot,
+            // independent of the plot allocator's padding and remote location.
+            var center = body.getMassTracker().getCenterOfMass();
+            BlockPos centerBlock = new BlockPos((int) Math.floor(center.x()),
+                    (int) Math.floor(center.y()), (int) Math.floor(center.z()));
+            if (!level.getBlockState(centerBlock).is(Blocks.DIAMOND_BLOCK)) {
+                helper.fail("Center-hole fixture did not resolve the assembled center voxel");
+            }
+            level.setBlock(centerBlock, Blocks.AIR.defaultBlockState(), 3);
+        }).thenIdle(60).thenExecute(() -> {
+            double y = body.logicalPose().position().y();
+            if (body.isRemoved() || !Double.isFinite(y) || y >= supportedY[0] - 0.5) {
+                helper.fail("Body retained collision in its edited center hole");
+            }
+        }).thenSucceed();
+    }
+
+    @PrefixGameTestTemplate(false)
     @GameTest(template = "physicstest.gravity", timeoutTicks = 80)
     public static void ballisticGravityUsesServerTickTime(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();

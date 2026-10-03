@@ -579,6 +579,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     }
 
     private ByteBuffer batchedPoseBuffer = null;
+    private final ByteBuffer collisionBuffer = ByteBuffer.allocateDirect(100 * 15 * Double.BYTES)
+            .order(ByteOrder.nativeOrder());
 
     @Override
     public void worldengine$syncActivePoses(ServerSubLevelContainer container, WorldEnginePhysicsSystem system) {
@@ -1373,22 +1375,23 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         final Vector3d globalPointB = new Vector3d();
 
         for (RapierPhysicsRegion region : List.copyOf(this.steppedRegions)) {
-            final double[] collisions = Rapier3D.clearCollisions(region.getSceneHandle());
-            if (collisions.length == 0) continue;
+            final int collisionCount = Rapier3D.writeCollisions(region.getSceneHandle(), this.collisionBuffer);
+            if (collisionCount < 0 || collisionCount > 100) throw new IllegalStateException("Invalid collision buffer result");
+            if (collisionCount == 0) continue;
 
             final BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
             final BlockPos.MutableBlockPos cornerPos = new BlockPos.MutableBlockPos();
 
-            for (int i = 0; i < collisions.length / 15; i++) {
-                final int startIndex = i * 15;
-                final int idA = (int) collisions[startIndex];
-                final int idB = (int) collisions[startIndex + 1];
+            for (int i = 0; i < collisionCount; i++) {
+                final int startIndex = i * 15 * Double.BYTES;
+                final int idA = (int) this.collisionBuffer.getDouble(startIndex);
+                final int idB = (int) this.collisionBuffer.getDouble(startIndex + 8);
 
-                final double forceAmount = collisions[startIndex + 2];
-                localNormalA.set(collisions[startIndex + 3], collisions[startIndex + 4], collisions[startIndex + 5]);
-                localNormalB.set(collisions[startIndex + 6], collisions[startIndex + 7], collisions[startIndex + 8]);
-                localPointA.set(collisions[startIndex + 9], collisions[startIndex + 10], collisions[startIndex + 11]);
-                localPointB.set(collisions[startIndex + 12], collisions[startIndex + 13], collisions[startIndex + 14]);
+                final double forceAmount = this.collisionBuffer.getDouble(startIndex + 16);
+                localNormalA.set(this.collisionBuffer.getDouble(startIndex + 24), this.collisionBuffer.getDouble(startIndex + 32), this.collisionBuffer.getDouble(startIndex + 40));
+                localNormalB.set(this.collisionBuffer.getDouble(startIndex + 48), this.collisionBuffer.getDouble(startIndex + 56), this.collisionBuffer.getDouble(startIndex + 64));
+                localPointA.set(this.collisionBuffer.getDouble(startIndex + 72), this.collisionBuffer.getDouble(startIndex + 80), this.collisionBuffer.getDouble(startIndex + 88));
+                localPointB.set(this.collisionBuffer.getDouble(startIndex + 96), this.collisionBuffer.getDouble(startIndex + 104), this.collisionBuffer.getDouble(startIndex + 112));
 
                 final ServerSubLevel subLevelA = region.getSubLevel(idA);
                 final ServerSubLevel subLevelB = region.getSubLevel(idB);

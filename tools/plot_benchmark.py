@@ -63,7 +63,7 @@ def main():
                       color="#137b66" if relative <= 100 else "#bb403d", zorder=3)
             axis.text(103, index - 0.17, f"{baseline / scale:.{digits}f} {unit}", va="center", fontsize=12)
             axis.text(relative + 3, index + 0.17,
-                      f"{addon / scale:.{digits}f} {unit} ({relative - 100:+.0f}%)", va="center", fontsize=12)
+                      f"{addon / scale:.{digits}f} {unit} ({relative - 100:+.1f}%)", va="center", fontsize=12)
         axis.set_title(title, fontsize=15, fontweight="bold", pad=18)
         axis.set_xlim(0, max(170, highest + 75))
         axis.set_xticks([0, 50, 100, 150], ["0%", "50%", "100%", "150%"])
@@ -86,7 +86,7 @@ def main():
     ticks = sorted({run["measuredTicks"] for run in data["runs"]})
     fig.text(0.5, 0.070, f"Minecraft 1.21.1 / NeoForge · {rows[('idle', 'sable')]['trials']} paired trials · "
              f"{warmup[0]} warmup + {ticks[0]} measured ticks per fresh JVM", ha="center", fontsize=10, color="#42566d")
-    fig.text(0.5, 0.045, "Medians across trials; CPU includes native workers. Allocation is server-thread bytes, not peak RAM.",
+    fig.text(0.5, 0.045, "Medians across trials; process CPU includes native workers. Allocation is server-thread bytes, not peak RAM.",
              ha="center", fontsize=10, color="#42566d")
     fig.text(0.5, 0.025, f"Release bundle · source {data['sourceHead'][:12]} · evidence {data['runId']}",
              ha="center", fontsize=9, color="#65758a")

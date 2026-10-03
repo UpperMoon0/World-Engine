@@ -20,17 +20,18 @@ The full technical migration is documented in [MIGRATION.md](MIGRATION.md).
 
 Five paired trials per workload on Minecraft 1.21.1 NeoForge used 50 fresh server
 processes, each with 300 warmup and 300 measured ticks. Total process CPU fell
-11–38% and p95 tick latency fell 32–51% across the five fixtures. Server-thread
-Java allocation fell 2–43% in body workloads and was unchanged when idle.
+13–36% and p95 tick latency fell 37–58% across the five fixtures. Server-thread
+Java allocation fell 4–48% in active/supported body workloads and was unchanged when idle.
 
-![World Engine 0.1.1 benchmark against stock Sable](docs/benchmarks/2026-10-04/world-engine-0.1.1.png)
+![World Engine 0.1.1 benchmark against stock Sable](docs/benchmarks/2026-10-04-645c382/world-engine-0.1.1.png)
 
-Active-body median tick latency was effectively tied (0.5% lower). Server-thread
-CPU increased 20% for active bodies and 8% with terrain edits, despite lower total
-process CPU. These results do not establish that every metric improves.
+Active-body median tick latency fell 4.9%. Server-thread CPU increased 13.4% for
+active bodies, and terrain-edit allocation increased 1.8%, despite lower total
+process CPU. These results do not establish that every metric improves. They
+measure revision `645c382`; later optimizations require a separate comparison.
 
-See the [complete results and raw evidence](docs/benchmarks/2026-10-04/README.md),
-[successful comparison run](https://github.com/UpperMoon0/World-Engine/actions/runs/37146595075),
+See the [complete results and raw evidence](docs/benchmarks/2026-10-04-645c382/README.md),
+[successful comparison run](https://github.com/UpperMoon0/World-Engine/actions/runs/37151439949),
 and [benchmark protocol](BENCHMARKS.md). These dedicated-server fixtures do not
 measure client FPS, retained RAM, arbitrary large ships or every addon.
 

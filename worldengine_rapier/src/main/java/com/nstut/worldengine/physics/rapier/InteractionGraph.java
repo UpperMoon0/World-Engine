@@ -44,6 +44,12 @@ final class InteractionGraph {
     private final Int2ObjectMap<Range> ranges = new Int2ObjectOpenHashMap<>();
     private final Int2ObjectMap<StoredBounds> bounds = new Int2ObjectOpenHashMap<>();
     private final Int2ObjectMap<IntSet> edges = new Int2ObjectOpenHashMap<>();
+    private final Int2ObjectMap<int[]> components = new Int2ObjectOpenHashMap<>();
+    private final IntArrayList componentPending = new IntArrayList();
+    private final IntSet componentVisited = new IntOpenHashSet();
+    private final java.util.function.IntConsumer enqueueComponent = neighbor -> {
+        if (componentVisited.add(neighbor)) componentPending.add(neighbor);
+    };
     private final IntSet oversized = new IntOpenHashSet();
     private final IntSet candidates = new IntOpenHashSet();
     // Updates are sequential. Snapshot primitive IDs before mutating sets;
@@ -56,12 +62,34 @@ final class InteractionGraph {
 
     void clear() {
         cells.clear(); ranges.clear(); bounds.clear(); edges.clear(); oversized.clear(); candidates.clear();
+        components.clear(); componentPending.clear(); componentVisited.clear();
         planeMisses = 0;
     }
 
     IntSet neighbors(int id) {
         IntSet result = edges.get(id);
         return result == null ? IntSets.EMPTY_SET : result;
+    }
+
+    /** Read-only member IDs, shared until a node or exact edge changes. */
+    int[] component(int seed) {
+        int[] cached = components.get(seed);
+        if (cached != null) return cached;
+        if (!bounds.containsKey(seed)) return it.unimi.dsi.fastutil.ints.IntArrays.EMPTY_ARRAY;
+        componentPending.clear();
+        componentVisited.clear();
+        componentPending.add(seed);
+        componentVisited.add(seed);
+        for (int head = 0; head < componentPending.size(); head++) {
+            neighbors(componentPending.getInt(head)).forEach(enqueueComponent);
+        }
+        int[] members = componentPending.toIntArray();
+        for (int id : members) components.put(id, members);
+        return members;
+    }
+
+    private void invalidateComponents() {
+        if (!components.isEmpty()) components.clear();
     }
 
     void remove(int id) {
@@ -74,6 +102,7 @@ final class InteractionGraph {
             if (reciprocal != null) reciprocal.remove(id);
         }
         StoredBounds removed = bounds.remove(id);
+        if (removed != null) invalidateComponents();
         if (removed != null && !removed.coversPlane) planeMisses--;
         oversized.remove(id);
     }
@@ -106,6 +135,7 @@ final class InteractionGraph {
             if (bounds.isEmpty()) sharedPlaneY = minY * 0.5 + maxY * 0.5;
             fresh = new StoredBounds();
             bounds.put(id, fresh);
+            invalidateComponents();
         }
         boolean coversPlane = minY <= sharedPlaneY && maxY >= sharedPlaneY;
         if (fresh.coversPlane != coversPlane) planeMisses += coversPlane ? -1 : 1;
@@ -120,7 +150,8 @@ final class InteractionGraph {
         if (unchanged) return;
         Range old = ranges.get(id);
         Range range = Range.of(minX, minY, minZ, maxX, maxY, maxZ, old);
-        if (!java.util.Objects.equals(range, old)) {
+        boolean rangeChanged = !java.util.Objects.equals(range, old);
+        if (rangeChanged) {
             if (old != null) membership(old, id, false);
             if (range != null) membership(range, id, true);
         }
@@ -133,11 +164,8 @@ final class InteractionGraph {
         // fresh above so a later box outside the plane can still discover them.
         if (horizontalUnchanged && sharedPlaneBefore && coversPlane) return;
 
-        visits.clear();
-        neighbors.forEach(collectVisit);
-
         IntSet queryCandidates;
-        if (range != null && range.cells.length == 1 && oversized.isEmpty()) {
+        if (!rangeChanged && range != null && range.cells.length == 1 && oversized.isEmpty()) {
             // This bucket already is the exact candidate union. Edge updates do
             // not mutate cell membership, so snapshot it without a second hash set.
             queryCandidates = cells.get(range.cells[0]);
@@ -149,34 +177,30 @@ final class InteractionGraph {
                 IntSet members = cells.get(key);
                 if (members != null) members.forEach(collectCandidate);
             }
+            // A changed cell range can leave old edges outside the new buckets.
+            // Unchanged ranges already contain every possible surviving neighbor.
+            if (rangeChanged) neighbors.forEach(collectCandidate);
             queryCandidates = candidates;
         }
 
-        // Remove stale reciprocal edges in place, then add exact current overlaps.
-        for (int i = 0; i < visits.size(); i++) {
-            int neighbor = visits.getInt(i);
-            StoredBounds b = bounds.get(neighbor);
-            if (b != null && fresh.intersects(b)) continue;
-            // Surviving neighbors remain reachable from id during component BFS.
-            // Only a removed edge needs a separate seed for its disconnected side.
-            affected.add(neighbor);
-            neighbors.remove(neighbor);
-            IntSet reciprocal = edges.get(neighbor);
-            if (reciprocal != null) reciprocal.remove(id);
-        }
+        // Test each candidate once for both insertion and deletion of exact edges.
         visits.clear();
         queryCandidates.forEach(collectVisit);
         for (int i = 0; i < visits.size(); i++) {
             int neighbor = visits.getInt(i);
-            // Surviving edges were already tested against these exact fresh
-            // bounds above. Their reciprocal edge is already present.
-            if (neighbor == id || neighbors.contains(neighbor)) continue;
+            if (neighbor == id) continue;
             StoredBounds b = bounds.get(neighbor);
-            if (b == null || !fresh.intersects(b)) continue;
-            neighbors.add(neighbor);
-            IntSet reciprocal = edges.get(neighbor);
-            if (reciprocal == null) { reciprocal = new IntOpenHashSet(); edges.put(neighbor, reciprocal); }
-            reciprocal.add(id);
+            if (b != null && fresh.intersects(b)) {
+                if (!neighbors.add(neighbor)) continue;
+                IntSet reciprocal = edges.get(neighbor);
+                if (reciprocal == null) { reciprocal = new IntOpenHashSet(); edges.put(neighbor, reciprocal); }
+                reciprocal.add(id);
+            } else {
+                if (!neighbors.remove(neighbor)) continue;
+                IntSet reciprocal = edges.get(neighbor);
+                if (reciprocal != null) reciprocal.remove(id);
+            }
+            invalidateComponents();
             affected.add(neighbor);
         }
     }

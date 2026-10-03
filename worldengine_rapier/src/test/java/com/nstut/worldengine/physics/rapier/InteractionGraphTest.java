@@ -41,6 +41,7 @@ class InteractionGraphTest {
                             && a[1] <= b[4] && a[4] >= b[1] && a[2] <= b[5] && a[5] >= b[2]) expected.add(right.getKey());
                 }
                 assertEquals(expected, graph.neighbors(left.getKey()), "step " + step + ", id " + left.getKey());
+                assertExactComponent(graph, left.getKey(), boxes, step);
             }
         }
     }
@@ -69,6 +70,21 @@ class InteractionGraphTest {
             }
         }
         assertTrue(reached.containsAll(previousSeeds), "lost affected component at step " + step);
+    }
+
+    private static void assertExactComponent(InteractionGraph graph, int seed,
+            Map<Integer, double[]> boxes, int step) {
+        Set<Integer> expected = new HashSet<>();
+        List<Integer> pending = new ArrayList<>();
+        if (boxes.containsKey(seed)) { expected.add(seed); pending.add(seed); }
+        for (int head = 0; head < pending.size(); head++) {
+            for (int neighbor : independentNeighbors(pending.get(head), boxes)) {
+                if (expected.add(neighbor)) pending.add(neighbor);
+            }
+        }
+        int[] actual = graph.component(seed);
+        assertEquals(expected, new IntOpenHashSet(actual), "component at step " + step + ", id " + seed);
+        assertEquals(expected.size(), actual.length, "duplicate component members");
     }
 
     @Test void sameCellMovementStillUpdatesExactEdgesAndAffectedNeighbors() {
@@ -101,6 +117,7 @@ class InteractionGraphTest {
             for (int present : boxes.keySet()) {
                 assertEquals(independentNeighbors(present, boxes), graph.neighbors(present),
                         "plane transition at step " + step + ", id " + present);
+                assertExactComponent(graph, present, boxes, step);
             }
         }
         graph.clear();
@@ -116,5 +133,29 @@ class InteractionGraphTest {
         graph.update(3, new InteractionGraph.Bounds(0, 500, 0, 2, 502, 2), affected);
         graph.update(4, new InteractionGraph.Bounds(0, 500, 0, 2, 502, 2), affected);
         assertEquals(Set.of(4), graph.neighbors(3));
+    }
+
+    @Test void componentsSurviveMovementButInvalidateOnSplitRemovalAndIdReuse() {
+        InteractionGraph graph = new InteractionGraph();
+        IntOpenHashSet affected = new IntOpenHashSet();
+        graph.update(1, new InteractionGraph.Bounds(0, 0, 0, 4, 4, 4), affected);
+        graph.update(2, new InteractionGraph.Bounds(3, 0, 0, 7, 4, 4), affected);
+        graph.update(3, new InteractionGraph.Bounds(6, 0, 0, 10, 4, 4), affected);
+        int[] connected = graph.component(1);
+        assertEquals(Set.of(1, 2, 3), new IntOpenHashSet(connected));
+        graph.update(2, new InteractionGraph.Bounds(3, 1, 0, 7, 5, 4), affected);
+        assertSame(connected, graph.component(3));
+        graph.update(2, new InteractionGraph.Bounds(300, 0, 0, 304, 4, 4), affected);
+        assertEquals(Set.of(1), new IntOpenHashSet(graph.component(1)));
+        assertEquals(Set.of(2), new IntOpenHashSet(graph.component(2)));
+        assertEquals(Set.of(3), new IntOpenHashSet(graph.component(3)));
+        graph.remove(2);
+        assertEquals(0, graph.component(2).length);
+        graph.update(2, new InteractionGraph.Bounds(3, 0, 0, 7, 4, 4), affected);
+        assertEquals(Set.of(1, 2, 3), new IntOpenHashSet(graph.component(1)));
+        graph.clear();
+        assertEquals(0, graph.component(1).length);
+        graph.update(1, new InteractionGraph.Bounds(900, 0, 0, 904, 4, 4), affected);
+        assertEquals(Set.of(1), new IntOpenHashSet(graph.component(1)));
     }
 }

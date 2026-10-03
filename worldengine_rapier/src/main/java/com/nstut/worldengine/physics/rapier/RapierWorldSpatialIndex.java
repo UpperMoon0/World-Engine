@@ -6,7 +6,6 @@ import dev.ryanhcode.sable.companion.math.BoundingBox3dc;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.IntSet;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
@@ -59,10 +58,6 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
     // dirty bodies for the next pass and never recursively reconcile this index.
     private final IntSet movedBodiesScratch = new IntOpenHashSet();
     private final List<ServerSubLevel> componentScratch = new ArrayList<>();
-    private final IntArrayList pendingScratch = new IntArrayList();
-    private final java.util.function.IntConsumer enqueueNeighbor = neighbor -> {
-        if (this.visitedInteractionBodies.add(neighbor)) this.pendingScratch.add(neighbor);
-    };
     private final List<Migration> migrationsScratch = new ArrayList<>();
     private final RapierPhysicsPipeline pipeline;
     private RapierPhysicsRegion defaultRegion;
@@ -290,15 +285,11 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
             if (!visited.add(seed)) continue;
             List<ServerSubLevel> component = this.componentScratch;
             component.clear();
-            IntArrayList pending = this.pendingScratch;
-            pending.clear();
-            pending.add(seed);
-            for (int head = 0; head < pending.size(); head++) {
-                int id = pending.getInt(head);
+            for (int id : this.interactionGraph.component(seed)) {
+                visited.add(id);
                 RapierPhysicsRegion region = this.subLevelRegionMap.get(id);
                 ServerSubLevel body = region == null ? null : region.getSubLevel(id);
                 if (body != null && !body.isRemoved()) component.add(body);
-                this.interactionGraph.neighbors(id).forEach(this.enqueueNeighbor);
             }
             if (component.size() < 2) continue;
             RapierPhysicsRegion target = this.getRegion(component.getFirst());
@@ -421,7 +412,6 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
         this.dirtyInteractionBodies.clear();
         this.movedBodiesScratch.clear();
         this.componentScratch.clear();
-        this.pendingScratch.clear();
         this.migrationsScratch.clear();
         this.defaultRegion = null;
     }

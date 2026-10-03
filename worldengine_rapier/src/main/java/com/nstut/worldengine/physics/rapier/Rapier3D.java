@@ -667,6 +667,11 @@ public final class Rapier3D {
     @ApiStatus.Internal
     static native double[] clearCollisions(long sceneHandle);
 
+    /** Same records and 100-event limit as clearCollisions, in native byte order.
+     * Returns the record count, or -1 without draining for invalid storage. */
+    @ApiStatus.Internal
+    static native int writeCollisions(long sceneHandle, java.nio.ByteBuffer buffer);
+
     /**
      * Applies a force to a given body
      *

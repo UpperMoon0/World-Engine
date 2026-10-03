@@ -8,8 +8,8 @@ improvement is claimed until the complete comparison passes.
 
 ## Latest release-bundle comparison
 
-The [0.1.1 results, figure and raw measurements](docs/benchmarks/2026-10-04/README.md)
-record five paired trials per workload on measured source 7c3f1ffda477. All
+The [0.1.1 results, figure and raw measurements](docs/benchmarks/2026-10-04-645c382/README.md)
+record five paired trials per workload on measured source 645c382c4c67. All
 paired physics checks passed. The report retains server-thread CPU increases and
 individual outliers alongside improvements in total CPU and tick latency.
 
@@ -61,6 +61,16 @@ that rebuilding the native Rust sources would produce an identical binary.
 ```sh
 python tools/benchmark_sable.py
 ```
+
+The full CI comparison runs the five workloads on separate runners to reduce
+elapsed time. Each workload keeps all five alternating Sable/addon pairs on its
+own runner, with 300 warmup and 300 measured ticks in every fresh JVM. Results
+are compared within each workload; absolute timings across different workload
+runners are not an overall score. The merge step revalidates all 50 runs and
+requires identical source and release inputs, retaining each runner's full
+compiled-input manifest and host metadata. The local command above remains
+sequential on one machine; use `--trials 5 --warmup 300 --ticks 300` for the full
+measurement window.
 
 For harness validation only:
 
@@ -170,7 +180,8 @@ provider, and rejects World Engine mixin resources in the baseline.
   Window-averaged thread CPU is also reported because coarse Windows counters
   can give a zero per-tick median despite substantial accumulated work.
 - **Process CPU ms per tick:** whole Minecraft JVM CPU over the measured window,
-  including native workers, networking, GC and instrumentation. It is not CPU
+  including native workers, networking, GC, instrumentation and workload commands
+  between tick intervals. It is not CPU
   percentage. It prevents native worker offloading from appearing as free work.
 
 Summaries use each trial's median (or p95/max, or full-window CPU average),

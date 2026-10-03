@@ -8,6 +8,7 @@ import java.util.List;
 public interface WorldEnginePhysicsSystem {
     Pose3d worldengine$storagePose();
     void worldengine$activate(ServerSubLevel subLevel);
+    void worldengine$refreshQueryBounds(ServerSubLevel subLevel);
     List<ServerSubLevel> worldengine$activeBodies();
     void worldengine$beginPoseSync();
     void worldengine$markActive(ServerSubLevel subLevel);

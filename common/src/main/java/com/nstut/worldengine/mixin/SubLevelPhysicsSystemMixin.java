@@ -201,6 +201,11 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
     }
 
     @Override
+    public void worldengine$refreshQueryBounds(ServerSubLevel subLevel) {
+        if (!subLevel.isRemoved()) this.worldengine$bodyIndex.refreshExisting(subLevel);
+    }
+
+    @Override
     public List<ServerSubLevel> worldengine$activeBodies() {
         if (this.worldengine$snapshotDirty) {
             this.worldengine$activeSnapshot = List.copyOf(this.worldengine$active);
@@ -230,7 +235,6 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
     @Override
     public void worldengine$markActive(ServerSubLevel subLevel) {
         if (!subLevel.isRemoved()) {
-            this.worldengine$bodyIndex.update(subLevel);
             this.worldengine$nextActive.add(subLevel);
         }
     }

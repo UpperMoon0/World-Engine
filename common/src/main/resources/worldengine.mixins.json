@@ -12,6 +12,7 @@
     "SubLevelTrackingSystemMixin",
     "SubLevelUpdateTicketMixin",
     "ServerSubLevelActivityMixin",
+    "SubLevelBoundsMixin",
     "SubLevelPhysicsSystemMixin"
   ],
   "client": [

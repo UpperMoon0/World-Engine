@@ -42,6 +42,10 @@ public final class WorldEngineBodyIndex {
         this.index.remove(body);
     }
 
+    public void refreshExisting(ServerSubLevel body) {
+        if (this.index.contains(body)) this.update(body);
+    }
+
     public Iterable<SubLevel> query(BoundingBox3dc bounds) {
         if (this.index.isEmpty()) return List.of();
 

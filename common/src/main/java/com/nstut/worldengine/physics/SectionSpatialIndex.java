@@ -58,6 +58,10 @@ public final class SectionSpatialIndex<T> {
         return this.bodySections.isEmpty() && this.largeBodies.isEmpty();
     }
 
+    public boolean contains(T body) {
+        return this.bodySections.containsKey(body) || this.largeBodies.contains(body);
+    }
+
     public int size() {
         return this.bodySections.size() + this.largeBodies.size();
     }

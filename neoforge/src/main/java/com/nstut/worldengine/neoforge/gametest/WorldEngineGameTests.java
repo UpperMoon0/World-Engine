@@ -258,6 +258,12 @@ public final class WorldEngineGameTests {
             if (!Double.isFinite(fall) || fall < expectedFall * 0.5 || fall > expectedFall * 1.2) {
                 helper.fail("Ballistic elapsed time differs from server time: fall=" + fall);
             }
+            boolean found = false;
+            for (SubLevel result : system.queryIntersecting(body.boundingBox())) {
+                if (result == body) found = true;
+            }
+            if (!found) helper.fail("Exact query missed the live ballistic body after falling: y="
+                    + body.logicalPose().position().y() + ", bounds=" + body.boundingBox());
         }).thenSucceed();
     }
 

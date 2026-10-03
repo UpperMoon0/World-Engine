@@ -88,7 +88,8 @@ commands and output I/O are outside those tick intervals. See the complete
 ## Validation and coverage
 
 The implementation has 24 passing Java tests, 54 passing native tests, 13 passing
-benchmark/JNI evidence tests, and all 13 required runtime tests pass in
+benchmark/JNI evidence tests. Of 13 runtime cases, all 10 required and two optional
+cases pass; the optional assembly case fails in
 [the measured revision's build](https://github.com/UpperMoon0/World-Engine/actions/runs/37146443357).
 All six native release targets were rebuilt in
 [native CI](https://github.com/UpperMoon0/World-Engine/actions/runs/37141492644).

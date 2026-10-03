@@ -2,6 +2,7 @@ package com.nstut.worldengine.neoforge.gametest;
 
 import com.nstut.worldengine.physics.WorldEngineBodyIndex;
 import com.nstut.worldengine.api.WorldEngineTerrainBodies;
+import com.nstut.worldengine.api.WorldEnginePhysicsSystem;
 import com.nstut.worldengine.api.WorldEngineSolverConfiguration;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.api.SubLevelAssemblyHelper;
@@ -84,6 +85,9 @@ public final class WorldEngineGameTests {
             supportedY[0] = body.logicalPose().position().y();
             if (body.isRemoved() || Math.abs(supportedY[0] - (block.getY() + 0.5)) > 0.15) {
                 helper.fail("Body did not settle on the support before removal");
+            }
+            if (((WorldEnginePhysicsSystem) SubLevelPhysicsSystem.require(level)).worldengine$activeBodies().contains(body)) {
+                helper.fail("Support-removal fixture was still active before the terrain change");
             }
             // Use the production block-change path, without an explicit test wake-up.
             level.setBlock(support, Blocks.AIR.defaultBlockState(), 3);

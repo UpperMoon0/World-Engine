@@ -232,7 +232,7 @@ def main():
                 compare_pair(pair["sable"], pair["worldengine"])
         metadata["summary"] = summarize(runs)
         metadata["pass_"] = True
-        metadata["publicationEligible"] = (not args.profile and args.trials >= 5 and args.warmup >= 100
+        metadata["publicationEligible"] = (not args.profile and not metadata["sourceDirty"] and args.trials >= 5 and args.warmup >= 100
                                            and args.ticks >= 100 and set(args.scenarios) == set(SCENARIOS))
     except Exception as exc:
         metadata["error"] = str(exc)

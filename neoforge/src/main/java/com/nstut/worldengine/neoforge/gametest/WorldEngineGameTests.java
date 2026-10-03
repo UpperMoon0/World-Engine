@@ -69,6 +69,33 @@ public final class WorldEngineGameTests {
     }
 
     @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", timeoutTicks = 240)
+    public static void sleepingBodyFallsAfterSupportRemoval(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos support = helper.absolutePos(new BlockPos(2, 1, 2));
+        BlockPos block = support.above();
+        level.setBlock(support, Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(block, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+        ServerSubLevel body = SubLevelAssemblyHelper.assembleBlocks(level, block, List.of(block),
+                new BoundingBox3i(block.getX(), block.getY(), block.getZ(),
+                        block.getX(), block.getY(), block.getZ()));
+        double[] supportedY = new double[1];
+        helper.startSequence().thenIdle(160).thenExecute(() -> {
+            supportedY[0] = body.logicalPose().position().y();
+            if (body.isRemoved() || Math.abs(supportedY[0] - (block.getY() + 0.5)) > 0.15) {
+                helper.fail("Body did not settle on the support before removal");
+            }
+            // Use the production block-change path, without an explicit test wake-up.
+            level.setBlock(support, Blocks.AIR.defaultBlockState(), 3);
+        }).thenIdle(40).thenExecute(() -> {
+            double y = body.logicalPose().position().y();
+            if (body.isRemoved() || !Double.isFinite(y) || y >= supportedY[0] - 0.5) {
+                helper.fail("Supported body did not wake and fall after terrain removal");
+            }
+        }).thenSucceed();
+    }
+
+    @PrefixGameTestTemplate(false)
     @GameTest(template = "physicstest.gravity", timeoutTicks = 80)
     public static void ballisticGravityUsesServerTickTime(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();

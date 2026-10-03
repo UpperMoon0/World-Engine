@@ -6,7 +6,7 @@ import dev.ryanhcode.sable.companion.math.BoundingBox3dc;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.IntSet;
-import it.unimi.dsi.fastutil.ints.IntArrayFIFOQueue;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
@@ -59,7 +59,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
     // dirty bodies for the next pass and never recursively reconcile this index.
     private final IntSet movedBodiesScratch = new IntOpenHashSet();
     private final List<ServerSubLevel> componentScratch = new ArrayList<>();
-    private final IntArrayFIFOQueue pendingScratch = new IntArrayFIFOQueue();
+    private final IntArrayList pendingScratch = new IntArrayList();
     private final List<Migration> migrationsScratch = new ArrayList<>();
     private final RapierPhysicsPipeline pipeline;
     private RapierPhysicsRegion defaultRegion;
@@ -269,7 +269,8 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
     private void updateInteractionGraph(IntSet movedBodies) {
         IntSet affected = this.affectedInteractionBodies;
         affected.clear();
-        for (int id : movedBodies) {
+        for (var idIterator = movedBodies.iterator(); idIterator.hasNext();) {
+            int id = idIterator.nextInt();
             RapierPhysicsRegion region = this.subLevelRegionMap.get(id);
             ServerSubLevel body = region == null ? null : region.getSubLevel(id);
             if (body == null || body.isRemoved()) {
@@ -281,20 +282,22 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
 
         IntSet visited = this.visitedInteractionBodies;
         visited.clear();
-        for (int seed : affected) {
+        for (var seedIterator = affected.iterator(); seedIterator.hasNext();) {
+            int seed = seedIterator.nextInt();
             if (!visited.add(seed)) continue;
             List<ServerSubLevel> component = this.componentScratch;
             component.clear();
-            IntArrayFIFOQueue pending = this.pendingScratch;
+            IntArrayList pending = this.pendingScratch;
             pending.clear();
-            pending.enqueue(seed);
-            while (!pending.isEmpty()) {
-                int id = pending.dequeueInt();
+            pending.add(seed);
+            for (int head = 0; head < pending.size(); head++) {
+                int id = pending.getInt(head);
                 RapierPhysicsRegion region = this.subLevelRegionMap.get(id);
                 ServerSubLevel body = region == null ? null : region.getSubLevel(id);
                 if (body != null && !body.isRemoved()) component.add(body);
-                for (int neighbor : this.interactionGraph.neighbors(id)) {
-                    if (visited.add(neighbor)) pending.enqueue(neighbor);
+                for (var neighborIterator = this.interactionGraph.neighbors(id).iterator(); neighborIterator.hasNext();) {
+                    int neighbor = neighborIterator.nextInt();
+                    if (visited.add(neighbor)) pending.add(neighbor);
                 }
             }
             if (component.size() < 2) continue;
@@ -326,7 +329,8 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
         this.updateInteractionGraph(movedBodies);
         List<Migration> migrations = this.migrationsScratch;
         migrations.clear();
-        for (int id : movedBodies) {
+        for (var idIterator = movedBodies.iterator(); idIterator.hasNext();) {
+            int id = idIterator.nextInt();
             RapierPhysicsRegion source = this.subLevelRegionMap.get(id);
             if (source == null) continue;
             ServerSubLevel subLevel = source.getSubLevel(id);

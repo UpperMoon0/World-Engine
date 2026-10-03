@@ -107,7 +107,8 @@ public class RapierPhysicsRegion implements PhysicsRegion {
     void replaceTerrainFootprint(int id, LongSet replacement) {
         LongSet previous = this.terrainFootprints.remove(id);
         if (previous != null) {
-            for (long key : previous) {
+            for (var keyIterator = previous.iterator(); keyIterator.hasNext();) {
+                long key = keyIterator.nextLong();
                 if (replacement.contains(key)) continue;
                 int references = this.terrainReferenceCounts.addTo(key, -1) - 1;
                 if (references <= 0) {
@@ -118,7 +119,8 @@ public class RapierPhysicsRegion implements PhysicsRegion {
                 }
             }
         }
-        for (long key : replacement) {
+        for (var keyIterator = replacement.iterator(); keyIterator.hasNext();) {
+            long key = keyIterator.nextLong();
             if (previous != null && previous.contains(key)) continue;
             int references = this.terrainReferenceCounts.addTo(key, 1);
             if (references == 0) {

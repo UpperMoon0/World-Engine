@@ -55,7 +55,8 @@ final class InteractionGraph {
         Range old = ranges.remove(id);
         if (old != null) membership(old, id, false);
         IntSet oldEdges = edges.remove(id);
-        if (oldEdges != null) for (int neighbor : oldEdges) {
+        if (oldEdges != null) for (var neighborIterator = oldEdges.iterator(); neighborIterator.hasNext();) {
+            int neighbor = neighborIterator.nextInt();
             IntSet reciprocal = edges.get(neighbor);
             if (reciprocal != null) reciprocal.remove(id);
         }
@@ -118,7 +119,8 @@ final class InteractionGraph {
             IntSet reciprocal = edges.get(neighbor);
             if (reciprocal != null) reciprocal.remove(id);
         }
-        for (int neighbor : candidates) {
+        for (var neighborIterator = candidates.iterator(); neighborIterator.hasNext();) {
+            int neighbor = neighborIterator.nextInt();
             // Surviving edges were already tested against these exact fresh
             // bounds above. Their reciprocal edge is already present.
             if (neighbors.contains(neighbor)) continue;

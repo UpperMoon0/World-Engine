@@ -7,7 +7,7 @@ use rapier3d::parry::query::details::{NormalConstraints, contact_manifold_cuboid
 use rapier3d::parry::query::{
     ClosestPoints, Contact, ContactManifold, ContactManifoldsWorkspace, DefaultQueryDispatcher,
     NonlinearRigidMotion, PersistentQueryDispatcher, QueryDispatcher, ShapeCastHit,
-    ShapeCastOptions, Unsupported,
+    ShapeCastOptions, TypedWorkspaceData, Unsupported, WorkspaceData,
 };
 use rapier3d::prelude::ShapeType::Custom;
 use rapier3d::prelude::{Aabb, Real};
@@ -36,6 +36,169 @@ const INTERIOR_COLLISION_CHECK_DISTANCE: f64 = 0.015;
 pub struct SableDispatcher {
     pub sable_data: Arc<RwLock<SableSceneData>>,
     pub manifold_info_map: Arc<SableManifoldInfoMap>,
+}
+
+// The index alone is not a contact identity: terrain edits and pair enumeration
+// can put a different voxel/box at the same manifold index on the next step.
+#[derive(Clone, PartialEq, Eq)]
+struct VoxelManifoldKey {
+    position_a: IVec3,
+    position_b: IVec3,
+    collider_a: u32,
+    collider_b: u32,
+    state_a: VoxelPhysicsState,
+    state_b: VoxelPhysicsState,
+    box_a: [u32; 6],
+    box_b: [u32; 6],
+    swapped: bool,
+}
+
+#[derive(Clone, Default)]
+struct VoxelManifoldWorkspace {
+    previous: Vec<VoxelManifoldKey>,
+    next: Vec<VoxelManifoldKey>,
+}
+
+impl WorkspaceData for VoxelManifoldWorkspace {
+    fn as_typed_workspace_data(&self) -> TypedWorkspaceData<'_> {
+        TypedWorkspaceData::Custom
+    }
+    fn clone_dyn(&self) -> Box<dyn WorkspaceData> {
+        Box::new(self.clone())
+    }
+}
+
+fn voxel_workspace(
+    workspace: &mut Option<ContactManifoldsWorkspace>,
+) -> &mut VoxelManifoldWorkspace {
+    if !workspace
+        .as_ref()
+        .is_some_and(|entry| entry.0.is::<VoxelManifoldWorkspace>())
+    {
+        *workspace = Some(VoxelManifoldWorkspace::default().into());
+    }
+    workspace
+        .as_mut()
+        .unwrap()
+        .0
+        .downcast_mut::<VoxelManifoldWorkspace>()
+        .unwrap()
+}
+
+fn match_voxel_contacts<ContactData: Default + Copy>(
+    key: &VoxelManifoldKey,
+    previous_key: Option<&VoxelManifoldKey>,
+    old: &ContactManifold<ContactManifoldData, ContactData>,
+    fresh: &mut ContactManifold<ContactManifoldData, ContactData>,
+) {
+    if previous_key == Some(key) {
+        // Parry matches feature ids and transfers only tracked point data.
+        // Fresh geometry, interior filtering and manifold/hook data stay fresh.
+        fresh.match_contacts(&old.points);
+    }
+}
+
+#[cfg(test)]
+mod tracking_tests {
+    use super::*;
+
+    fn key() -> VoxelManifoldKey {
+        VoxelManifoldKey {
+            position_a: IVec3::ZERO,
+            position_b: IVec3::Y,
+            collider_a: 1,
+            collider_b: 2,
+            state_a: Face,
+            state_b: Face,
+            box_a: [
+                0,
+                0,
+                0,
+                1.0_f32.to_bits(),
+                1.0_f32.to_bits(),
+                1.0_f32.to_bits(),
+            ],
+            box_b: [
+                0,
+                0,
+                0,
+                1.0_f32.to_bits(),
+                1.0_f32.to_bits(),
+                1.0_f32.to_bits(),
+            ],
+            swapped: false,
+        }
+    }
+
+    fn contacts() -> ContactManifold<ContactManifoldData, u32> {
+        let mut manifold = ContactManifold::new();
+        let pose = Pose3 {
+            translation: Vec3::Y,
+            rotation: rapier3d::glamx::Quat::IDENTITY,
+        };
+        let cube = rapier3d::parry::shape::Cuboid::new(Vec3::splat(0.5));
+        contact_manifold_cuboid_cuboid_shapes(&pose, &cube, &cube, 0.01, &mut manifold);
+        assert!(!manifold.points.is_empty());
+        manifold
+    }
+
+    #[test]
+    fn unchanged_voxel_pair_keeps_tracked_data_and_fresh_geometry() {
+        let mut old = contacts();
+        for point in &mut old.points {
+            point.data = 37;
+            point.local_p1 += Vec3::splat(100.0);
+        }
+        let mut fresh = contacts();
+        let positions: Vec<_> = fresh
+            .points
+            .iter()
+            .map(|point| (point.local_p1, point.local_p2))
+            .collect();
+        match_voxel_contacts(&key(), Some(&key()), &old, &mut fresh);
+        assert!(fresh.points.iter().all(|point| point.data == 37));
+        assert_eq!(
+            positions,
+            fresh
+                .points
+                .iter()
+                .map(|point| (point.local_p1, point.local_p2))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn reordered_voxel_or_changed_geometry_cannot_inherit_impulses() {
+        let mut old = contacts();
+        for point in &mut old.points {
+            point.data = 37;
+        }
+        let original = key();
+        let mut changed = original.clone();
+        changed.position_b.x += 1;
+        let mut changed_box = original.clone();
+        changed_box.box_b[3] = 0.5_f32.to_bits();
+        let mut changed_state = original.clone();
+        changed_state.state_a = Interior;
+        let mut changed_collider = original.clone();
+        changed_collider.collider_b += 1;
+        let mut swapped = original.clone();
+        swapped.swapped = true;
+        for previous in [
+            changed,
+            changed_box,
+            changed_state,
+            changed_collider,
+            swapped,
+        ] {
+            let mut fresh = contacts();
+            match_voxel_contacts(&original, Some(&previous), &old, &mut fresh);
+            assert!(fresh.points.iter().all(|point| point.data == 0));
+        }
+        let mut fresh = contacts();
+        match_voxel_contacts(&original, None, &old, &mut fresh);
+        assert!(fresh.points.iter().all(|point| point.data == 0));
+    }
 }
 
 impl SableDispatcher {
@@ -146,7 +309,7 @@ where
         g2: &dyn Shape,
         prediction: Real,
         manifolds: &mut Vec<ContactManifold<ContactManifoldData, ContactData>>,
-        _workspace: &mut Option<ContactManifoldsWorkspace>,
+        workspace: &mut Option<ContactManifoldsWorkspace>,
     ) -> Result<(), Unsupported> {
         if g1.shape_type() != Custom && g2.shape_type() != Custom {
             return Err(Unsupported);
@@ -178,7 +341,15 @@ where
             let g2 = g2.as_shape::<LevelCollider>().unwrap();
 
             if g1.is_static && !g2.is_static {
-                self.world_vs_world::<ContactData>(pos12, g1, g2, prediction, manifolds, false);
+                self.world_vs_world::<ContactData>(
+                    pos12,
+                    g1,
+                    g2,
+                    prediction,
+                    manifolds,
+                    false,
+                    voxel_workspace(workspace),
+                );
             } else if !g1.is_static && !g2.is_static {
                 let swap = {
                     let sable_data = self.sable_data.read().unwrap();
@@ -213,9 +384,18 @@ where
                         prediction,
                         manifolds,
                         true,
+                        voxel_workspace(workspace),
                     );
                 } else {
-                    self.world_vs_world::<ContactData>(pos12, g1, g2, prediction, manifolds, false);
+                    self.world_vs_world::<ContactData>(
+                        pos12,
+                        g1,
+                        g2,
+                        prediction,
+                        manifolds,
+                        false,
+                        voxel_workspace(workspace),
+                    );
                 }
             }
         }
@@ -437,7 +617,9 @@ impl SableDispatcher {
         prediction: Real,
         manifolds: &mut Vec<ContactManifold<ContactManifoldData, ContactData>>,
         swap: bool,
+        workspace: &mut VoxelManifoldWorkspace,
     ) {
+        workspace.next.clear();
         let physics_state = crate::get_physics_state();
         let sable_data = self.sable_data.read().unwrap();
 
@@ -621,6 +803,45 @@ impl SableDispatcher {
                         center_of_mass_2,
                         &mut new_manifold,
                     ) {
+                        // No points means no solver constraint or collision event.
+                        // Avoid retaining an empty manifold and allocating hook
+                        // metadata for a voxel pair rejected by contact generation
+                        // or the interior-face filter.
+                        if new_manifold.points.is_empty() {
+                            continue;
+                        }
+                        let key = VoxelManifoldKey {
+                            position_a: IVec3::new(static_x, static_y, static_z),
+                            position_b: IVec3::new(other_bx, other_by, other_bz),
+                            collider_a: block_id,
+                            collider_b: other_block_id,
+                            state_a: voxel_collider_state,
+                            state_b: other_voxel_collider_state,
+                            box_a: [
+                                min_x.to_bits(),
+                                min_y.to_bits(),
+                                min_z.to_bits(),
+                                max_x.to_bits(),
+                                max_y.to_bits(),
+                                max_z.to_bits(),
+                            ],
+                            box_b: [
+                                other_min_x.to_bits(),
+                                other_min_y.to_bits(),
+                                other_min_z.to_bits(),
+                                other_max_x.to_bits(),
+                                other_max_y.to_bits(),
+                                other_max_z.to_bits(),
+                            ],
+                            swapped: swap,
+                        };
+                        match_voxel_contacts(
+                            &key,
+                            workspace.previous.get(manifold_index),
+                            &manifolds[manifold_index],
+                            &mut new_manifold,
+                        );
+                        workspace.next.push(key);
                         let index = self
                             .manifold_info_map
                             .counter
@@ -687,6 +908,7 @@ impl SableDispatcher {
         if manifolds.len() > manifold_index {
             manifolds.truncate(manifold_index);
         }
+        std::mem::swap(&mut workspace.previous, &mut workspace.next);
     }
 
     /// Adjusts the AABB for a given body

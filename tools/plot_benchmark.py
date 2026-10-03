@@ -3,6 +3,7 @@
 Requires matplotlib; does not run as part of normal mod builds.
 """
 import argparse
+import gzip
 import json
 from pathlib import Path
 import matplotlib
@@ -20,7 +21,11 @@ def main():
     parser.add_argument("output", type=Path)
     parser.add_argument("--version", required=True)
     args = parser.parse_args()
-    data = json.loads(args.result.read_text())
+    if args.result.suffix == ".gz":
+        with gzip.open(args.result, "rt", encoding="utf-8") as source:
+            data = json.load(source)
+    else:
+        data = json.loads(args.result.read_text())
     if not (data.get("pass_") and data.get("publicationEligible")
             and not data.get("profiled") and data.get("sourceDirty") is False
             and data.get("nativeMode") == "checked-in-release-bundle"):

@@ -45,6 +45,11 @@ final class InteractionGraph {
     private final Int2ObjectMap<IntSet> edges = new Int2ObjectOpenHashMap<>();
     private final IntSet oversized = new IntOpenHashSet();
     private final IntSet candidates = new IntOpenHashSet();
+    // Updates are sequential. Snapshot primitive IDs before mutating sets;
+    // IntOpenHashSet.forEach visits its table without allocating an iterator.
+    private final IntArrayList visits = new IntArrayList();
+    private final java.util.function.IntConsumer collectVisit = visits::add;
+    private final java.util.function.IntConsumer collectCandidate = candidates::add;
 
     void clear() {
         cells.clear(); ranges.clear(); bounds.clear(); edges.clear(); oversized.clear(); candidates.clear();
@@ -92,7 +97,9 @@ final class InteractionGraph {
         IntSet neighbors = edges.get(id);
         if (neighbors == null) { neighbors = new IntOpenHashSet(); edges.put(id, neighbors); }
         affected.add(id);
-        affected.addAll(neighbors);
+        visits.clear();
+        neighbors.forEach(collectVisit);
+        for (int i = 0; i < visits.size(); i++) affected.add(visits.getInt(i));
         Range old = ranges.get(id);
         Range range = Range.of(minX, minY, minZ, maxX, maxY, maxZ, old);
         if (!java.util.Objects.equals(range, old)) {
@@ -103,25 +110,27 @@ final class InteractionGraph {
         else { ranges.put(id, range); oversized.remove(id); }
 
         candidates.clear();
-        candidates.addAll(oversized);
-        if (range == null) candidates.addAll(bounds.keySet());
+        oversized.forEach(collectCandidate);
+        if (range == null) bounds.keySet().forEach(collectCandidate);
         else for (Cell key : range.cells) {
             IntSet members = cells.get(key);
-            if (members != null) candidates.addAll(members);
+            if (members != null) members.forEach(collectCandidate);
         }
         candidates.remove(id);
 
         // Remove stale reciprocal edges in place, then add exact current overlaps.
-        for (IntIterator it = neighbors.iterator(); it.hasNext();) {
-            int neighbor = it.nextInt();
+        for (int i = 0; i < visits.size(); i++) {
+            int neighbor = visits.getInt(i);
             StoredBounds b = bounds.get(neighbor);
             if (b != null && fresh.intersects(b)) continue;
-            it.remove();
+            neighbors.remove(neighbor);
             IntSet reciprocal = edges.get(neighbor);
             if (reciprocal != null) reciprocal.remove(id);
         }
-        for (var neighborIterator = candidates.iterator(); neighborIterator.hasNext();) {
-            int neighbor = neighborIterator.nextInt();
+        visits.clear();
+        candidates.forEach(collectVisit);
+        for (int i = 0; i < visits.size(); i++) {
+            int neighbor = visits.getInt(i);
             // Surviving edges were already tested against these exact fresh
             // bounds above. Their reciprocal edge is already present.
             if (neighbors.contains(neighbor)) continue;

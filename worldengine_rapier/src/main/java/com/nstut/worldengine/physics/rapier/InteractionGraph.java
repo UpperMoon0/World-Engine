@@ -30,8 +30,11 @@ final class InteractionGraph {
         private static int coordinate(double value) { return (int) Math.floor(value / 128.0); }
     }
     private static final class StoredBounds {
+        final int id;
+        int slot;
         double minX, minY, minZ, maxX, maxY, maxZ;
         boolean coversPlane = true;
+        StoredBounds(int id, int slot) { this.id = id; this.slot = slot; }
         void set(double x, double y, double z, double xx, double yy, double zz) {
             minX = x; minY = y; minZ = z; maxX = xx; maxY = yy; maxZ = zz;
         }
@@ -43,6 +46,7 @@ final class InteractionGraph {
     private final Map<Cell, IntSet> cells = new HashMap<>();
     private final Int2ObjectMap<Range> ranges = new Int2ObjectOpenHashMap<>();
     private final Int2ObjectMap<StoredBounds> bounds = new Int2ObjectOpenHashMap<>();
+    private final java.util.ArrayList<StoredBounds> orderedBounds = new java.util.ArrayList<>();
     private final Int2ObjectMap<IntSet> edges = new Int2ObjectOpenHashMap<>();
     private final Int2ObjectMap<int[]> components = new Int2ObjectOpenHashMap<>();
     private final IntArrayList componentPending = new IntArrayList();
@@ -62,6 +66,7 @@ final class InteractionGraph {
 
     void clear() {
         cells.clear(); ranges.clear(); bounds.clear(); edges.clear(); oversized.clear(); candidates.clear();
+        orderedBounds.clear();
         components.clear(); componentPending.clear(); componentVisited.clear();
         planeMisses = 0;
     }
@@ -102,7 +107,11 @@ final class InteractionGraph {
             if (reciprocal != null) reciprocal.remove(id);
         }
         StoredBounds removed = bounds.remove(id);
-        if (removed != null) invalidateComponents();
+        if (removed != null) {
+            invalidateComponents();
+            StoredBounds last = orderedBounds.removeLast();
+            if (last != removed) { orderedBounds.set(removed.slot, last); last.slot = removed.slot; }
+        }
         if (removed != null && !removed.coversPlane) planeMisses--;
         oversized.remove(id);
     }
@@ -133,7 +142,8 @@ final class InteractionGraph {
                 && fresh.maxX == maxX && fresh.maxY == maxY && fresh.maxZ == maxZ;
         if (fresh == null) {
             if (bounds.isEmpty()) sharedPlaneY = minY * 0.5 + maxY * 0.5;
-            fresh = new StoredBounds();
+            fresh = new StoredBounds(id, orderedBounds.size());
+            orderedBounds.add(fresh);
             bounds.put(id, fresh);
             invalidateComponents();
         }
@@ -164,23 +174,38 @@ final class InteractionGraph {
         // fresh above so a later box outside the plane can still discover them.
         if (horizontalUnchanged && sharedPlaneBefore && coversPlane) return;
 
+        boolean scan = range == null;
         IntSet queryCandidates;
         if (!rangeChanged && range != null && range.cells.length == 1 && oversized.isEmpty()) {
             // This bucket already is the exact candidate union. Edge updates do
             // not mutate cell membership, so snapshot it without a second hash set.
             queryCandidates = cells.get(range.cells[0]);
+            scan = queryCandidates.size() >= orderedBounds.size();
         } else {
             candidates.clear();
             oversized.forEach(collectCandidate);
-            if (range == null) bounds.keySet().forEach(collectCandidate);
-            else for (Cell key : range.cells) {
+            long candidateVisits = oversized.size();
+            if (range != null) for (Cell key : range.cells) {
                 IntSet members = cells.get(key);
-                if (members != null) members.forEach(collectCandidate);
+                if (members == null) continue;
+                candidateVisits += members.size();
+                // Once bucket visits cost a whole-body scan, bypass deduplication
+                // and ID-to-bounds lookups. Every live box is tested exactly once.
+                if (candidateVisits >= orderedBounds.size()) { scan = true; break; }
+                members.forEach(collectCandidate);
             }
             // A changed cell range can leave old edges outside the new buckets.
             // Unchanged ranges already contain every possible surviving neighbor.
-            if (rangeChanged) neighbors.forEach(collectCandidate);
+            if (!scan && rangeChanged) neighbors.forEach(collectCandidate);
             queryCandidates = candidates;
+        }
+
+        if (scan) {
+            for (int i = 0; i < orderedBounds.size(); i++) {
+                StoredBounds candidate = orderedBounds.get(i);
+                if (candidate.id != id) reconcileEdge(id, fresh, neighbors, candidate, affected);
+            }
+            return;
         }
 
         // Test each candidate once for both insertion and deletion of exact edges.
@@ -190,18 +215,23 @@ final class InteractionGraph {
             int neighbor = visits.getInt(i);
             if (neighbor == id) continue;
             StoredBounds b = bounds.get(neighbor);
-            if (b != null && fresh.intersects(b)) {
-                if (!neighbors.add(neighbor)) continue;
-                IntSet reciprocal = edges.get(neighbor);
-                if (reciprocal == null) { reciprocal = new IntOpenHashSet(); edges.put(neighbor, reciprocal); }
-                reciprocal.add(id);
-            } else {
-                if (!neighbors.remove(neighbor)) continue;
-                IntSet reciprocal = edges.get(neighbor);
-                if (reciprocal != null) reciprocal.remove(id);
-            }
-            invalidateComponents();
-            affected.add(neighbor);
+            if (b != null) reconcileEdge(id, fresh, neighbors, b, affected);
         }
+    }
+
+    private void reconcileEdge(int id, StoredBounds fresh, IntSet neighbors, StoredBounds candidate, IntSet affected) {
+        int neighbor = candidate.id;
+        if (fresh.intersects(candidate)) {
+            if (!neighbors.add(neighbor)) return;
+            IntSet reciprocal = edges.get(neighbor);
+            if (reciprocal == null) { reciprocal = new IntOpenHashSet(); edges.put(neighbor, reciprocal); }
+            reciprocal.add(id);
+        } else {
+            if (!neighbors.remove(neighbor)) return;
+            IntSet reciprocal = edges.get(neighbor);
+            if (reciprocal != null) reciprocal.remove(id);
+        }
+        invalidateComponents();
+        affected.add(neighbor);
     }
 }

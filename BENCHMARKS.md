@@ -8,8 +8,8 @@ improvement is claimed until the complete comparison passes.
 
 ## Latest release-bundle comparison
 
-The [0.1.1 results, figure and raw measurements](docs/benchmarks/2026-10-04-645c382/README.md)
-record five paired trials per workload on measured source 645c382c4c67. All
+The [0.1.1 results, figure and raw measurements](docs/benchmarks/2026-10-04-9ceadf4/README.md)
+record five paired trials per workload on measured source 9ceadf4de2b9. All
 paired physics checks passed. The report retains server-thread CPU increases and
 individual outliers alongside improvements in total CPU and tick latency.
 

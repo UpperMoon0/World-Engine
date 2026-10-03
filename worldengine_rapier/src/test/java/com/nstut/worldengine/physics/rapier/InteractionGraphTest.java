@@ -158,4 +158,30 @@ class InteractionGraphTest {
         graph.update(1, new InteractionGraph.Bounds(900, 0, 0, 904, 4, 4), affected);
         assertEquals(Set.of(1), new IntOpenHashSet(graph.component(1)));
     }
+
+    @Test void denseAndSparseCandidatePathsMatchIndependentOracleAfterRemovalAndReuse() {
+        InteractionGraph graph = new InteractionGraph();
+        Map<Integer, double[]> boxes = new HashMap<>();
+        Random random = new Random(470102);
+        for (int step = 0; step < 540; step++) {
+            int id = step < 180 ? step : random.nextInt(180);
+            if (step >= 180 && step % 17 == 0) {
+                graph.remove(id); boxes.remove(id);
+            } else {
+                Set<Integer> previousSeeds = independentNeighbors(id, boxes);
+                previousSeeds.add(id);
+                double x = step >= 180 && step < 360 ? id * 600.0 : (id % 12) * 3.0 + Math.sin(step) * .1;
+                double z = (id / 12) * 3.0;
+                double[] b = {x - 8, -8, z - 8, x + 10, 10, z + 10};
+                boxes.put(id, b);
+                IntOpenHashSet affected = new IntOpenHashSet();
+                graph.update(id, new InteractionGraph.Bounds(b[0], b[1], b[2], b[3], b[4], b[5]), affected);
+                assertComponentsCovered(previousSeeds, affected, boxes, step);
+            }
+            if (step % 30 == 0 || step == 539) for (int present : boxes.keySet()) {
+                assertEquals(independentNeighbors(present, boxes), graph.neighbors(present), "dense/sparse step " + step);
+                assertExactComponent(graph, present, boxes, step);
+            }
+        }
+    }
 }

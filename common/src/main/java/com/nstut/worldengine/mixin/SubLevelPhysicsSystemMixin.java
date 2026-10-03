@@ -205,8 +205,10 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
     @Override
     public void worldengine$beginPoseSync() {
         this.worldengine$nextActive.clear();
-        this.worldengine$continuous.removeIf(SubLevel::isRemoved);
-        this.worldengine$nextActive.addAll(this.worldengine$continuous);
+        if (!this.worldengine$continuous.isEmpty()) {
+            this.worldengine$continuous.removeIf(SubLevel::isRemoved);
+            this.worldengine$nextActive.addAll(this.worldengine$continuous);
+        }
     }
 
     @Override
@@ -219,6 +221,7 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
 
     @Override
     public void worldengine$endPoseSync() {
+        if (this.worldengine$active.isEmpty() && this.worldengine$nextActive.isEmpty()) return;
         if (!this.worldengine$active.equals(this.worldengine$nextActive)) {
             this.worldengine$active.clear();
             this.worldengine$active.addAll(this.worldengine$nextActive);

@@ -14,7 +14,7 @@ final class ResidentBodyTracker<T> {
     void clear() { residents.clear(); snapshot = List.of(); dirty = false; }
 
     List<T> tickets(List<T> active) {
-        if (residents.containsAll(active)) {
+        if (active.isEmpty() || residents.containsAll(active)) {
             if (dirty) { snapshot = List.copyOf(residents); dirty = false; }
             return snapshot;
         }

@@ -723,13 +723,22 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_step<'
                     && std::env::var("WE_NATIVE_PROFILE").as_deref() == Ok("true") {
                     let ms = |duration: std::time::Duration| duration.as_secs_f64() * 1000.0;
                     let counters = &sim.pipeline.counters;
-                    eprintln!("WE_NATIVE_PROFILE epoch_ms={} scene={} total_ms={:.4} solver_and_guard_ms={:.4} sync_ms={:.4} evict_ms={:.4} rapier_ms={:.4} broad_ms={:.4} narrow_ms={:.4} solver_ms={:.4} ccd_ms={:.4} bodies={} active={}",
+                    let manifolds = sim.narrow_phase.contact_pairs().map(|pair| pair.manifolds.len()).sum::<usize>();
+                    let contacts = sim.narrow_phase.contact_pairs().flat_map(|pair| pair.manifolds.iter())
+                        .map(|manifold| manifold.data.solver_contacts.len()).sum::<usize>();
+                    let max_tree_depth = sable.level_colliders.values().filter_map(|info| info.octree.as_ref())
+                        .map(|tree| tree.log_size).max().unwrap_or(0);
+                    eprintln!("WE_NATIVE_PROFILE epoch_ms={} scene={} total_ms={:.4} solver_and_guard_ms={:.4} sync_ms={:.4} evict_ms={:.4} rapier_ms={:.4} broad_ms={:.4} narrow_ms={:.4} solver_ms={:.4} ccd_ms={:.4} bodies={} active={} manifolds={} contacts={} iterations={} pgs={} stabilization={} min_island={} max_tree_depth={}",
                         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(),
                         handle, ms(profile_start.elapsed()), ms(profile_after_solver.duration_since(profile_start)),
                         ms(profile_after_sync.duration_since(profile_after_solver)), ms(profile_after_sync.elapsed()),
                         counters.step_time_ms(), counters.broad_phase_time_ms(), counters.narrow_phase_time_ms(),
                         counters.solver_time_ms(), counters.ccd_time_ms(), sim.rigid_body_set.len(),
-                        sim.island_manager.active_bodies().count());
+                        sim.island_manager.active_bodies().count(), manifolds, contacts,
+                        sim.integration_parameters.num_solver_iterations,
+                        sim.integration_parameters.num_internal_pgs_iterations,
+                        sim.integration_parameters.num_internal_stabilization_iterations,
+                        sim.integration_parameters.min_island_size, max_tree_depth);
                 }
             }
         });

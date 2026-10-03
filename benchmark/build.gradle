@@ -21,10 +21,14 @@ neoForge {
     runs {
         server {
             server()
-            gameDirectory = file(providers.environmentVariable('WE_BENCH_GAME_DIR').get())
+            gameDirectory = file(providers.environmentVariable('WE_BENCH_GAME_DIR').getOrElse('build/benchmark-server'))
             programArgument '--nogui'
             jvmArgument '-Xms2G'
             jvmArgument '-Xmx2G'
+            if (providers.environmentVariable('WE_BENCH_PROFILE').getOrElse('false') == 'true') {
+                jvmArgument "-XX:StartFlightRecording=filename=${gameDirectory.get().asFile}/profile.jfr,settings=profile,dumponexit=true"
+                jvmArgument '-XX:FlightRecorderOptions=stackdepth=128'
+            }
             systemProperty 'we.benchmark.engine', engine
         }
     }

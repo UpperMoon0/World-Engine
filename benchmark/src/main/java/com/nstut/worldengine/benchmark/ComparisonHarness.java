@@ -152,7 +152,10 @@ public final class ComparisonHarness {
                     new BlockPos(3 + (i % 16) * 4, -58, 3 + (i / 16) * 4),
                     (ticks % 20 == 0 ? Blocks.STONE : Blocks.AIR).defaultBlockState(), 3);
         }
-        if (ticks == warmup) processCpuStart = os.getProcessCpuTime();
+        if (ticks == warmup) {
+            result.put("measurementStartEpochMs", System.currentTimeMillis());
+            processCpuStart = os.getProcessCpuTime();
+        }
         allocated = thread.getThreadAllocatedBytes(Thread.currentThread().threadId());
         cpu = thread.getCurrentThreadCpuTime();
         start = System.nanoTime();
@@ -172,6 +175,7 @@ public final class ComparisonHarness {
         ticks++;
         if (ticks == warmup + measured) {
             long processCpu = os.getProcessCpuTime() - processCpuStart;
+            result.put("measurementEndEpochMs", System.currentTimeMillis());
             result.put("samples", samples);
             result.put("processCpuMs", processCpu / 1e6);
             result.put("initialY", initialY);

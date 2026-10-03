@@ -71,6 +71,7 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
     @Unique private List<ServerSubLevel> worldengine$activeSnapshot = List.of();
     @Unique private boolean worldengine$snapshotDirty = true;
     @Unique private final WorldEngineBodyIndex worldengine$bodyIndex = new WorldEngineBodyIndex();
+    @Unique private final Quaterniond worldengine$rotationDifference = new Quaterniond();
 
     @Inject(method = "onSubLevelAdded", at = @At("TAIL"))
     private void worldengine$activateAdded(SubLevel subLevel, CallbackInfo ci) {
@@ -127,7 +128,7 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
 
         for (this.currentSubstep = 0; this.currentSubstep < this.config.substepsPerTick; this.currentSubstep++) {
             double timeStep = 1.0 / 20.0 / this.config.substepsPerTick;
-            List<ServerSubLevel> physicsBodies = new ArrayList<>(this.worldengine$activeBodies());
+            List<ServerSubLevel> physicsBodies = this.worldengine$activeBodies();
 
             for (ServerSubLevel subLevel : physicsBodies) if (!subLevel.isRemoved()) subLevel.prePhysicsTickBegin();
             for (ServerSubLevel subLevel : physicsBodies) if (!subLevel.isRemoved()) subLevel.updateMergedMassData((float) this.getPartialPhysicsTick());
@@ -242,7 +243,7 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
         logicalPose.position().set(this.storagePose.position());
         logicalPose.orientation().set(this.storagePose.orientation());
         logicalPose.position().sub(subLevel.lastPose().position(), subLevel.latestLinearVelocity);
-        Quaterniond difference = logicalPose.orientation().difference(subLevel.lastPose().orientation(), new Quaterniond()).conjugate();
+        Quaterniond difference = logicalPose.orientation().difference(subLevel.lastPose().orientation(), this.worldengine$rotationDifference).conjugate();
         Vector3d angularVelocity = subLevel.latestAngularVelocity.set(difference.x, difference.y, difference.z);
         if (angularVelocity.lengthSquared() <= 1E-15) angularVelocity.mul(2.0 / difference.w);
         else angularVelocity.normalize().mul(2.0 * Math.safeAcos(difference.w));

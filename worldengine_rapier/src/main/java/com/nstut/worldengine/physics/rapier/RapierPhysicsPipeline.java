@@ -114,6 +114,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     private final Set<RapierPhysicsRegion> activeRegions = new ReferenceOpenHashSet<>();
     private final Set<RapierPhysicsRegion> dirtyRegions = new ReferenceOpenHashSet<>();
     private final Set<RapierPhysicsRegion> steppedRegions = new ReferenceOpenHashSet<>();
+    private final Set<RapierPhysicsRegion> workRegionsScratch = new ReferenceOpenHashSet<>();
+    private final List<RegionStep> parallelRegionsScratch = new ArrayList<>();
+    private final ResidentBodyTracker<ServerSubLevel> residentBodies = new ResidentBodyTracker<>();
     private final PriorityQueue<ScheduledRegion> scheduledRegions = new PriorityQueue<>(Comparator.comparingLong(ScheduledRegion::tick));
     private final ExecutorService regionWorkers;
     private final double[] poseCache;
@@ -131,13 +134,12 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
 
     @Override
     public List<ServerSubLevel> worldengine$ticketBodies(List<ServerSubLevel> activeBodies) {
-        Set<ServerSubLevel> bodies = new ReferenceOpenHashSet<>(activeBodies);
-        if (this.spatialIndex != null) {
-            for (PhysicsRegion region : this.spatialIndex.getRegions()) {
-                bodies.addAll(region.getActiveSubLevels());
-            }
-        }
-        return List.copyOf(bodies);
+        return this.residentBodies.tickets(activeBodies);
+    }
+
+    void trackResidentBody(ServerSubLevel body, boolean resident) {
+        if (resident) this.residentBodies.add(body);
+        else this.residentBodies.remove(body);
     }
 
     public Vector3dc getGravity() { return this.gravity; }
@@ -279,6 +281,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         this.activeRegions.clear();
         this.dirtyRegions.clear();
         this.steppedRegions.clear();
+        this.workRegionsScratch.clear();
+        this.parallelRegionsScratch.clear();
+        this.residentBodies.clear();
         this.scheduledRegions.clear();
         this.appliedSolverSettings.clear();
         this.terrainSectionRegions.clear();
@@ -369,7 +374,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         this.physicsTickCounter++;
         this.updateContraptionPoses();
 
-        Set<RapierPhysicsRegion> workRegions = new ReferenceOpenHashSet<>(this.activeRegions);
+        Set<RapierPhysicsRegion> workRegions = this.workRegionsScratch;
+        workRegions.clear();
+        workRegions.addAll(this.activeRegions);
         workRegions.addAll(this.dirtyRegions);
         this.dirtyRegions.clear();
         while (!this.scheduledRegions.isEmpty() && this.scheduledRegions.peek().tick() <= this.physicsTickCounter) {
@@ -383,7 +390,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         }
 
         this.steppedRegions.clear();
-        List<RegionStep> parallelRegions = new ArrayList<>();
+        List<RegionStep> parallelRegions = this.parallelRegionsScratch;
+        parallelRegions.clear();
         for (RapierPhysicsRegion region : workRegions) {
             // Bounds and block changes are finalized on the server thread before
             // physics observers tick. Apply their terrain footprints before the
@@ -729,7 +737,6 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     void streamRegionTerrain(RapierPhysicsRegion region) {
         boolean changedNativeTerrain = false;
         for (int id : region.drainDirtyTerrainBodies()) {
-            LongSet desired = new LongOpenHashSet();
             ServerSubLevel subLevel = region.getSubLevel(id);
             if (subLevel != null && !subLevel.isRemoved()) {
                 TerrainFootprintTracker.Envelope envelope = this.terrainEnvelope(subLevel);
@@ -737,9 +744,12 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
                 // Only allocate and diff the section set after its conservative
                 // swept section envelope actually changes.
                 if (!region.terrainFootprintNeedsRefresh(id, envelope)) continue;
+                LongSet desired = new LongOpenHashSet();
                 this.addTerrainRange(desired, envelope);
+                region.replaceTerrainFootprint(id, desired);
+            } else {
+                region.replaceTerrainFootprint(id, it.unimi.dsi.fastutil.longs.LongSets.EMPTY_SET);
             }
-            region.replaceTerrainFootprint(id, desired);
         }
 
         // Non-sublevel objects are few and have no persistent body id. Keep

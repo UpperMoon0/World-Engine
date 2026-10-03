@@ -6,6 +6,7 @@ import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 
 final class TerrainFootprintTracker {
+    private static final int[] NO_DIRTY_BODIES = new int[0];
     record Envelope(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         private static final Envelope EMPTY = new Envelope(0, 0, 0, -1, -1, -1);
 
@@ -71,6 +72,7 @@ final class TerrainFootprintTracker {
     }
 
     int[] drainDirtyBodies() {
+        if (this.dirtyBodies.isEmpty()) return NO_DIRTY_BODIES;
         int[] result = this.dirtyBodies.toIntArray();
         this.dirtyBodies.clear();
         return result;

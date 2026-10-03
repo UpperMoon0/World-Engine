@@ -62,6 +62,23 @@ python tools/benchmark_sable.py --trials 1 --warmup 100 --ticks 100 --scenarios 
 python -m unittest discover -s tools -p 'test_benchmark_sable.py'
 ```
 
+For diagnostic recordings, use `--profile`, for example:
+
+```sh
+python tools/benchmark_sable.py --profile --trials 1 --warmup 100 --ticks 400 --scenarios active64 edits64
+```
+
+Each process writes `profile.jfr` beside its sample. The sample records the measured
+window's start/end epoch milliseconds so allocation and CPU samples can be filtered
+to that interval. Profiled runs are never publication eligible. JFR allocation
+weights are sampled estimates, not a replacement for the exact server-thread
+allocation counter in the unprofiled comparison.
+
+The Benchmark harness workflow accepts a `full` manual run on the PR branch:
+five paired trials of all fixtures, with 300 warmup and 300 measured ticks. Its
+JSON and launch logs are retained as an artifact. Automatic PR smoke runs cover
+all five fixtures and cannot establish a performance claim.
+
 The benchmark project is opt-in through `-PbenchmarkEngine`; it is absent from normal
 builds and release jars. Baseline classpaths contain neither World Engine sources
 nor its native provider. The harness checks both the loaded mod set and selected

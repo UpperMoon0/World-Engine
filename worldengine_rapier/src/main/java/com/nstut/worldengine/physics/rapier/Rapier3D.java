@@ -16,6 +16,7 @@ import net.minecraft.Util;
 import net.minecraft.Util.OS;
 import net.minecraft.server.level.ServerLevel;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix3dc;
 import org.joml.Vector3dc;
 
@@ -189,6 +190,7 @@ public final class Rapier3D {
     public static native int[] drainMaterializationRequests(final long universeHandle);
 
     @ApiStatus.Internal
+    @Nullable // No eviction events: avoid allocating an empty JNI array each substep.
     public static native int[] drainEvictionEvents(final long universeHandle);
 
     @ApiStatus.Internal

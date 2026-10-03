@@ -2648,7 +2648,8 @@ pub fn check_scene_evictions(
 
         let bounds = Some(ubody.bounds);
         if is_slow && is_gravity_free {
-            let has_collision = bounds.is_some_and(|b| !universe.spatial_index.query(b, id).is_empty() || terrain_overlaps_bounds(sable, b));
+            let has_collision = bounds.is_some_and(|b| terrain_overlaps_bounds(sable, b)
+                || universe.spatial_index.intersects_any(b, id));
             if !has_collision {
                 if evict_rapier_body(sim, sable, universe, world_origin, id, false, true) {
                     if let Some(body) = universe.universe_bodies.get_mut(&id) {
@@ -2661,9 +2662,11 @@ pub fn check_scene_evictions(
             let elapsed = 0.05 * BALLISTIC_MAX_INTERVAL as Real;
             let lookahead_disp = velocity * elapsed + effective_gravity * (0.5 * elapsed * elapsed);
             let swept = bounds.swept(crate::scene::DVec3::new(lookahead_disp.x as f64, lookahead_disp.y as f64, lookahead_disp.z as f64));
-            let has_collision = !universe.spatial_index.query(swept, id).is_empty()
+            // These are pure OR predicates. Known streamed terrain can retain
+            // residency immediately, without allocating a body-neighbor list.
+            let has_collision = universe.swept_intersects_terrain(swept)
                 || terrain_overlaps_bounds(sable, swept)
-                || universe.swept_intersects_terrain(swept);
+                || universe.spatial_index.intersects_any(swept, id);
             if !has_collision {
                 if evict_rapier_body(sim, sable, universe, world_origin, id, false, true) {
                     if let Some(body) = universe.universe_bodies.get_mut(&id) {
@@ -4706,10 +4709,14 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_drainE
     universe_handle: jni::sys::jlong,
 ) -> jni::sys::jintArray {
     if universe_handle == 0 {
-        return env.new_int_array(0).unwrap().into_raw();
+        return std::ptr::null_mut();
     }
     let universe_ptr = universe_handle as *mut std::sync::RwLock<crate::scene::DimensionUniverse>;
     let mut universe = unsafe { &*universe_ptr }.write().unwrap();
+    if universe.eviction_events.is_empty() {
+        universe.pending_evictions.clear();
+        return std::ptr::null_mut();
+    }
     let evictions: Vec<i32> = universe.eviction_events.drain(..).map(|id| id as i32).collect();
     universe.pending_evictions.clear();
     let array = env.new_int_array(evictions.len() as jni::sys::jsize).unwrap();

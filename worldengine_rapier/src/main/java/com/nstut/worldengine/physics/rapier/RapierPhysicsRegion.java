@@ -127,6 +127,7 @@ public class RapierPhysicsRegion implements PhysicsRegion {
     }
 
     LongSet drainChangedTerrainSections() {
+        if (this.changedTerrainSections.isEmpty()) return it.unimi.dsi.fastutil.longs.LongSets.EMPTY_SET;
         LongSet result = new LongOpenHashSet(this.changedTerrainSections);
         this.changedTerrainSections.clear();
         return result;
@@ -136,6 +137,7 @@ public class RapierPhysicsRegion implements PhysicsRegion {
     public void addSubLevel(ServerSubLevel subLevel) {
         int id = Rapier3D.getID(subLevel);
         this.activeSubLevels.put(id, subLevel);
+        this.owner.trackResidentBody(subLevel, true);
         this.forceTerrainDirty(id);
     }
 
@@ -143,6 +145,7 @@ public class RapierPhysicsRegion implements PhysicsRegion {
     public void removeSubLevel(ServerSubLevel subLevel) {
         int id = Rapier3D.getID(subLevel);
         this.activeSubLevels.remove(id);
+        this.owner.trackResidentBody(subLevel, false);
         this.terrainFootprintTracker.remove(id);
         this.replaceTerrainFootprint(id, new LongOpenHashSet());
     }

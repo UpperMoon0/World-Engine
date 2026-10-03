@@ -141,6 +141,7 @@ def main():
     parser.add_argument("--warmup", type=int, default=100)
     parser.add_argument("--ticks", type=int, default=100)
     parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument("--profile", action="store_true", help="Record JFR diagnostics; results are not publication eligible")
     parser.add_argument("--scenarios", nargs="+", choices=SCENARIOS, default=list(SCENARIOS))
     args = parser.parse_args()
     if min(args.trials, args.warmup, args.ticks, args.timeout) <= 0:
@@ -160,8 +161,9 @@ def main():
         for task in ("buildLocalRustWindows", "copyLocalRustWindows", "packRustNatives"):
             common.extend(["-x", f":worldengine_rapier:{task}"])
     env = os.environ.copy()
+    env["WE_BENCH_PROFILE"] = "true" if args.profile else "false"
     metadata = dict(schema=1, host=platform.platform(), runId=stamp, pass_=False,
-                    nativeMode="checked-in-release-bundle")
+                    nativeMode="checked-in-release-bundle", profiled=args.profile)
     runs = []
     try:
         metadata["sourceHead"] = subprocess.check_output(
@@ -215,7 +217,7 @@ def main():
                 compare_pair(pair["sable"], pair["worldengine"])
         metadata["summary"] = summarize(runs)
         metadata["pass_"] = True
-        metadata["publicationEligible"] = (args.trials >= 5 and args.warmup >= 100
+        metadata["publicationEligible"] = (not args.profile and args.trials >= 5 and args.warmup >= 100
                                            and args.ticks >= 100 and set(args.scenarios) == set(SCENARIOS))
     except Exception as exc:
         metadata["error"] = str(exc)

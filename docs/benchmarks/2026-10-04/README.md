@@ -11,7 +11,8 @@ per workload: 50 fresh JVMs, each with 300 warmup and 300 measured ticks.
 - [Frozen source, class, resource and binary hashes](inputs.json.gz)
 - Native bundle SHA-256: `2299f1351d5946ee6a8fa60de958d583c53c6f77082cc146c9898d8f9dcaa401`
 
-Only documentation and chart rendering are changed after the measured source.
+The figure measures the linked source revision. Later optimization commits need
+a separate comparison; these archived numbers do not measure those commits.
 The normal checked-in native bundle was used; development profiler libraries and
 JFR recordings are excluded from these performance results.
 

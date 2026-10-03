@@ -99,13 +99,12 @@ final class InteractionGraph {
         IntSet neighbors = edges.get(id);
         if (neighbors == null) { neighbors = new IntOpenHashSet(); edges.put(id, neighbors); }
         affected.add(id);
-        visits.clear();
-        neighbors.forEach(collectVisit);
-        for (int i = 0; i < visits.size(); i++) affected.add(visits.getInt(i));
         // Other bodies update reciprocal edges when their bounds change. An expired
         // interaction hold still seeds component/migration checks, but identical
         // bounds need no fresh cell or candidate scan.
         if (unchanged) return;
+        visits.clear();
+        neighbors.forEach(collectVisit);
         Range old = ranges.get(id);
         Range range = Range.of(minX, minY, minZ, maxX, maxY, maxZ, old);
         if (!java.util.Objects.equals(range, old)) {
@@ -115,31 +114,41 @@ final class InteractionGraph {
         if (range == null) { ranges.remove(id); oversized.add(id); }
         else { ranges.put(id, range); oversized.remove(id); }
 
-        candidates.clear();
-        oversized.forEach(collectCandidate);
-        if (range == null) bounds.keySet().forEach(collectCandidate);
-        else for (Cell key : range.cells) {
-            IntSet members = cells.get(key);
-            if (members != null) members.forEach(collectCandidate);
+        IntSet queryCandidates;
+        if (range != null && range.cells.length == 1 && oversized.isEmpty()) {
+            // This bucket already is the exact candidate union. Edge updates do
+            // not mutate cell membership, so snapshot it without a second hash set.
+            queryCandidates = cells.get(range.cells[0]);
+        } else {
+            candidates.clear();
+            oversized.forEach(collectCandidate);
+            if (range == null) bounds.keySet().forEach(collectCandidate);
+            else for (Cell key : range.cells) {
+                IntSet members = cells.get(key);
+                if (members != null) members.forEach(collectCandidate);
+            }
+            queryCandidates = candidates;
         }
-        candidates.remove(id);
 
         // Remove stale reciprocal edges in place, then add exact current overlaps.
         for (int i = 0; i < visits.size(); i++) {
             int neighbor = visits.getInt(i);
             StoredBounds b = bounds.get(neighbor);
             if (b != null && fresh.intersects(b)) continue;
+            // Surviving neighbors remain reachable from id during component BFS.
+            // Only a removed edge needs a separate seed for its disconnected side.
+            affected.add(neighbor);
             neighbors.remove(neighbor);
             IntSet reciprocal = edges.get(neighbor);
             if (reciprocal != null) reciprocal.remove(id);
         }
         visits.clear();
-        candidates.forEach(collectVisit);
+        queryCandidates.forEach(collectVisit);
         for (int i = 0; i < visits.size(); i++) {
             int neighbor = visits.getInt(i);
             // Surviving edges were already tested against these exact fresh
             // bounds above. Their reciprocal edge is already present.
-            if (neighbors.contains(neighbor)) continue;
+            if (neighbor == id || neighbors.contains(neighbor)) continue;
             StoredBounds b = bounds.get(neighbor);
             if (b == null || !fresh.intersects(b)) continue;
             neighbors.add(neighbor);

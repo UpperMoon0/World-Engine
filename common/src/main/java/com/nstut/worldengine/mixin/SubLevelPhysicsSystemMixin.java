@@ -24,6 +24,7 @@ import dev.ryanhcode.sable.sublevel.plot.LevelPlot;
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem;
 import dev.ryanhcode.sable.sublevel.system.ticket.PhysicsChunkTicketManager;
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
+import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import net.minecraft.CrashReport;
 import net.minecraft.CrashReportCategory;
 import net.minecraft.ReportedException;
@@ -72,6 +73,7 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
     @Unique private boolean worldengine$snapshotDirty = true;
     @Unique private final WorldEngineBodyIndex worldengine$bodyIndex = new WorldEngineBodyIndex();
     @Unique private final Quaterniond worldengine$rotationDifference = new Quaterniond();
+    @Unique private final Reference2ObjectOpenHashMap<ServerSubLevel, RigidBodyHandle> worldengine$tickHandles = new Reference2ObjectOpenHashMap<>();
 
     @Inject(method = "onSubLevelAdded", at = @At("TAIL"))
     private void worldengine$activateAdded(SubLevel subLevel, CallbackInfo ci) {
@@ -85,6 +87,7 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
             this.worldengine$nextActive.remove(serverSubLevel);
             this.worldengine$continuous.remove(serverSubLevel);
             this.worldengine$bodyIndex.remove(serverSubLevel);
+            this.worldengine$tickHandles.remove(serverSubLevel);
             this.worldengine$snapshotDirty = true;
         }
     }
@@ -133,11 +136,11 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
             for (ServerSubLevel subLevel : physicsBodies) if (!subLevel.isRemoved()) subLevel.prePhysicsTickBegin();
             for (ServerSubLevel subLevel : physicsBodies) if (!subLevel.isRemoved()) subLevel.updateMergedMassData((float) this.getPartialPhysicsTick());
             for (ServerSubLevel subLevel : physicsBodies) if (!subLevel.isRemoved()) subLevel.prePhysicsTick(
-                    (SubLevelPhysicsSystem) (Object) this, this.getPhysicsHandle(subLevel), timeStep);
+                    (SubLevelPhysicsSystem) (Object) this, this.worldengine$tickHandle(subLevel), timeStep);
 
             SableEventPublishPlatform.INSTANCE.prePhysicsTick((SubLevelPhysicsSystem) (Object) this, timeStep);
             for (ServerSubLevel subLevel : physicsBodies) if (!subLevel.isRemoved()) subLevel.applyQueuedForces(
-                    (SubLevelPhysicsSystem) (Object) this, this.getPhysicsHandle(subLevel), timeStep);
+                    (SubLevelPhysicsSystem) (Object) this, this.worldengine$tickHandle(subLevel), timeStep);
 
             SubLevelPhysicsSystem.IN_PHYSICS_STEP = true;
             try {
@@ -155,6 +158,19 @@ public abstract class SubLevelPhysicsSystemMixin implements WorldEnginePhysicsSy
 
         this.pipeline.postPhysicsTicks();
         this.currentSubstep = this.config.substepsPerTick;
+    }
+
+    @Unique
+    private RigidBodyHandle worldengine$tickHandle(ServerSubLevel subLevel) {
+        // Sable's handle keeps immutable body/system references and resolves the current
+        // pipeline on every operation. Reuse only our internal handles; the public factory
+        // still returns a fresh handle. Body removal releases the cached reference.
+        RigidBodyHandle handle = this.worldengine$tickHandles.get(subLevel);
+        if (handle == null) {
+            handle = this.getPhysicsHandle(subLevel);
+            this.worldengine$tickHandles.put(subLevel, handle);
+        }
+        return handle;
     }
 
     @Unique

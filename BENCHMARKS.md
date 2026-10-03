@@ -6,6 +6,13 @@ comparison below runs actual Sable 2.0.5 in fresh Minecraft 1.21.1 NeoForge JVMs
 first without the addon, then with the production addon/provider. No performance
 improvement is claimed until the complete comparison passes.
 
+## Latest release-bundle comparison
+
+The [0.1.1 results, figure and raw measurements](docs/benchmarks/2026-10-04/README.md)
+record five paired trials per workload on measured source 7c3f1ffda477. All
+paired physics checks passed. The report retains server-thread CPU increases and
+individual outliers alongside improvements in total CPU and tick latency.
+
 ## Terrain support and native bundle correction
 
 The first comparison exposed a real regression: stock Sable settled at
@@ -133,7 +140,8 @@ provider, and rejects World Engine mixin resources in the baseline.
   setters for every live scene at start and end. Missing or unequal submissions
   invalidate the run. These diagnostics verify successful setter calls, not
   native readback; the JNI setter mappings were checked against the Rust source.
-- 100 warmup ticks, then 100 measured ticks per process. Preparation, assembly,
+- The full CI comparison uses 300 warmup ticks and 300 measured ticks per
+  process. The default smoke/diagnostic runs use 100 of each. Preparation, assembly,
   workload commands, correctness checks and output I/O are outside tick intervals.
 - Inputs are compiled before measurement and source/classes/resources/JAR hashes
   are checked around each trial. Changed inputs invalidate the comparison.

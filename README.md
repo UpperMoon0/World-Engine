@@ -2,7 +2,7 @@
 
 World Engine is a performance addon for [Sable](https://www.curseforge.com/minecraft/mc-mods/sable) on Minecraft 1.21.1. It is designed for worlds with many physics bodies and for large moving structures such as ships, stations, and terrain-scale contraptions.
 
-It preserves Sable's configured physics substeps and collision behavior. Performance comes from doing less unnecessary work—not from lowering simulation quality.
+It keeps Sable's configured physics substeps and solver settings. Its optimizations reduce repeated indexing, terrain streaming, and collision work.
 
 ## What it improves
 
@@ -15,6 +15,24 @@ It preserves Sable's configured physics substeps and collision behavior. Perform
 - Sable's configured physics substeps remain in effect.
 
 The full technical migration is documented in [MIGRATION.md](MIGRATION.md).
+
+## Benchmark: 0.1.1 vs stock Sable
+
+Five paired trials per workload on Minecraft 1.21.1 NeoForge used 50 fresh server
+processes, each with 300 warmup and 300 measured ticks. Total process CPU fell
+11–38% and p95 tick latency fell 32–51% across the five fixtures. Server-thread
+Java allocation fell 2–43% in body workloads and was unchanged when idle.
+
+![World Engine 0.1.1 benchmark against stock Sable](docs/benchmarks/2026-10-04/world-engine-0.1.1.png)
+
+Active-body median tick latency was effectively tied (0.5% lower). Server-thread
+CPU increased 20% for active bodies and 8% with terrain edits, despite lower total
+process CPU. These results do not establish that every metric improves.
+
+See the [complete results and raw evidence](docs/benchmarks/2026-10-04/README.md),
+[successful comparison run](https://github.com/UpperMoon0/World-Engine/actions/runs/37146595075),
+and [benchmark protocol](BENCHMARKS.md). These dedicated-server fixtures do not
+measure client FPS, retained RAM, arbitrary large ships or every addon.
 
 ## Requirements
 

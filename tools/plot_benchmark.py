@@ -42,11 +42,13 @@ def main():
 
     plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11,
                          "axes.spines.top": False, "axes.spines.right": False})
-    fig, axes = plt.subplots(1, 3, figsize=(16.8, 7.0), sharey=True)
+    fig, grid = plt.subplots(2, 2, figsize=(12.8, 10.2), sharey="row")
+    axes = grid.ravel()
     fig.patch.set_facecolor("#ffffff")
     metrics = [("tickMs", "Median server tick", "ms", 1.0, 3),
                ("processCpuMsPerTick", "Process CPU per tick", "ms", 1.0, 2),
-               ("serverThreadAllocatedBytes", "Java allocation per tick", "KiB", 1024.0, 1)]
+               ("serverThreadAllocatedBytes", "Java allocation per tick", "KiB", 1024.0, 1),
+               ("p95TickMs", "95th percentile server tick", "ms", 1.0, 3)]
     for axis, (metric, title, unit, scale, digits) in zip(axes, metrics):
         highest = 100.0
         for index, scenario in enumerate(SCENARIOS):
@@ -57,9 +59,9 @@ def main():
             axis.barh(index - 0.17, 100, height=0.29, color="#94a3b8", zorder=3)
             axis.barh(index + 0.17, relative, height=0.29,
                       color="#137b66" if relative <= 100 else "#bb403d", zorder=3)
-            axis.text(103, index - 0.17, f"{baseline / scale:.{digits}f} {unit}", va="center", fontsize=10)
+            axis.text(103, index - 0.17, f"{baseline / scale:.{digits}f} {unit}", va="center", fontsize=12)
             axis.text(relative + 3, index + 0.17,
-                      f"{addon / scale:.{digits}f} {unit} ({relative - 100:+.0f}%)", va="center", fontsize=10)
+                      f"{addon / scale:.{digits}f} {unit} ({relative - 100:+.0f}%)", va="center", fontsize=12)
         axis.set_title(title, fontsize=15, fontweight="bold", pad=18)
         axis.set_xlim(0, max(170, highest + 75))
         axis.set_xticks([0, 50, 100, 150], ["0%", "50%", "100%", "150%"])
@@ -69,8 +71,9 @@ def main():
         axis.spines["left"].set_visible(False)
         axis.spines["bottom"].set_color("#d4dae2")
         axis.tick_params(axis="y", length=0)
-    axes[0].set_yticks(range(len(SCENARIOS)), LABELS, fontsize=12)
-    axes[0].invert_yaxis()
+    for axis in (axes[0], axes[2]):
+        axis.set_yticks(range(len(SCENARIOS)), LABELS, fontsize=12)
+        axis.invert_yaxis()
     fig.suptitle(f"World Engine {args.version} vs stock Sable 2.0.5", x=0.51, y=0.965,
                  fontsize=23, fontweight="bold", color="#172b42")
     fig.text(0.51, 0.905, "Lower is better · Each workload's stock Sable result is 100%", ha="center", fontsize=13)
@@ -79,13 +82,13 @@ def main():
                loc="upper center", bbox_to_anchor=(0.52, 0.88), ncol=2, frameon=False, fontsize=12)
     warmup = sorted({run["warmupTicks"] for run in data["runs"]})
     ticks = sorted({run["measuredTicks"] for run in data["runs"]})
-    fig.text(0.5, 0.085, f"Minecraft 1.21.1 / NeoForge · {rows[('idle', 'sable')]['trials']} paired trials · "
+    fig.text(0.5, 0.070, f"Minecraft 1.21.1 / NeoForge · {rows[('idle', 'sable')]['trials']} paired trials · "
              f"{warmup[0]} warmup + {ticks[0]} measured ticks per fresh JVM", ha="center", fontsize=10, color="#42566d")
-    fig.text(0.5, 0.055, "Medians across trials; CPU includes native workers. Allocation is server-thread bytes, not peak RAM.",
+    fig.text(0.5, 0.045, "Medians across trials; CPU includes native workers. Allocation is server-thread bytes, not peak RAM.",
              ha="center", fontsize=10, color="#42566d")
     fig.text(0.5, 0.025, f"Release bundle · source {data['sourceHead'][:12]} · evidence {data['runId']}",
              ha="center", fontsize=9, color="#65758a")
-    fig.subplots_adjust(left=0.16, right=0.985, top=0.76, bottom=0.20, wspace=0.20)
+    fig.subplots_adjust(left=0.205, right=0.985, top=0.79, bottom=0.15, wspace=0.18, hspace=0.55)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.output, dpi=160, facecolor=fig.get_facecolor())
     plt.close(fig)

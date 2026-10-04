@@ -3,6 +3,7 @@ package com.nstut.worldengine.neoforge.gametest;
 import com.nstut.worldengine.physics.WorldEngineBodyIndex;
 import com.nstut.worldengine.physics.rapier.Rapier3D;
 import com.nstut.worldengine.physics.rapier.RapierPhysicsPipeline;
+import com.nstut.worldengine.physics.rapier.RapierPhysicsRegion;
 import com.nstut.worldengine.physics.rapier.RapierWorldSpatialIndex;
 import com.nstut.worldengine.physics.rapier.rope.RapierRopeHandle;
 import dev.ryanhcode.sable.api.physics.object.rope.RopeHandle;
@@ -32,6 +33,89 @@ import org.joml.Vector3d;
 @GameTestHolder(Sable.MOD_ID)
 public final class WorldEngineGameTests {
     private WorldEngineGameTests() { }
+
+    private static RapierWorldSpatialIndex ropeSceneIndex(RapierPhysicsPipeline pipeline) {
+        try {
+            var indexField = RapierPhysicsPipeline.class.getDeclaredField("spatialIndex");
+            indexField.setAccessible(true);
+            return (RapierWorldSpatialIndex) indexField.get(pipeline);
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError("Unable to inspect rope scene index", exception);
+        }
+    }
+
+    // Observe actual scene steps without waking/materializing a body via constraint preparation.
+    private static long ropeSceneLastStep(RapierPhysicsPipeline pipeline, RapierRopeHandle rope) {
+        try {
+            var region = ropeSceneIndex(pipeline).getRegions().stream()
+                    .filter(candidate -> candidate.getSceneHandle() == rope.sceneHandle()).findFirst().orElseThrow();
+            var stepField = region.getClass().getDeclaredField("lastStepTick");
+            stepField.setAccessible(true);
+            return stepField.getLong(region);
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError("Unable to inspect rope scene scheduling", exception);
+        }
+    }
+
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", batch = "rope-mutations", timeoutTicks = 1600)
+    public static void sleepingRopeSceneResumesAfterMutations(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos block = helper.absolutePos(new BlockPos(2, 2, 2));
+        RapierPhysicsPipeline pipeline = (RapierPhysicsPipeline) SubLevelPhysicsSystem.require(level).getPipeline();
+        // Isolate the real scheduler from terrain contact jitter and other tests' body wake-ups.
+        // This is a registered non-auxiliary region, with a local origin and zero gravity.
+        RapierPhysicsRegion region = new RapierPhysicsRegion(pipeline, new Vector3d(),
+                pipeline.getUniversalDrag(), new Vector3d(block.getX(), block.getY(), block.getZ()));
+        ropeSceneIndex(pipeline).getRegions().add(region);
+        pipeline.updateConfigFrom(SubLevelPhysicsSystem.require(level).getConfig());
+        List<Vector3d> points = new java.util.ArrayList<>(List.of(
+                new Vector3d(block.getX(), block.getY(), block.getZ()),
+                new Vector3d(block.getX() + 1, block.getY(), block.getZ()),
+                new Vector3d(block.getX() + 2, block.getY(), block.getZ())));
+        RapierRopeHandle rope = RapierRopeHandle.create(pipeline, Rapier3D.getSceneHandle(level), 0.1, points);
+        if (!rope.moveTo(region.getSceneHandle())) helper.fail("Rope did not move into its local scene");
+        rope.setAttachment(RopeHandle.AttachmentPoint.START, points.getFirst(), null);
+        Vector3d addedPoint = new Vector3d(block.getX() - 1, block.getY(), block.getZ());
+        RapierRopeHandle[] extra = new RapierRopeHandle[1];
+        Runnable[] mutations = {
+                () -> rope.setFirstSegmentLength(0.3),
+                () -> { rope.addPoint(addedPoint); points.addFirst(new Vector3d(addedPoint)); },
+                () -> { rope.removeFirstPoint(); points.removeFirst(); },
+                () -> rope.setAttachment(RopeHandle.AttachmentPoint.END, points.getLast(), null),
+                rope::wakeUp,
+                () -> extra[0] = RapierRopeHandle.create(pipeline, rope.sceneHandle(), 0.1,
+                        List.of(new Vector3d(addedPoint), new Vector3d(addedPoint).add(0, 1, 0))),
+                () -> extra[0].remove()
+        };
+        String[] names = {"length change", "point addition", "point removal", "attachment change",
+                "explicit wake-up", "rope creation", "rope removal"};
+        long[] lastStep = new long[1];
+        Vector3d previousMiddle = new Vector3d();
+        var sequence = helper.startSequence();
+        for (int i = 0; i < mutations.length; i++) {
+            final int mutation = i;
+            sequence.thenIdle(180).thenExecute(() -> {
+                lastStep[0] = ropeSceneLastStep(pipeline, rope);
+                rope.readPose(points);
+                previousMiddle.set(points.get(1));
+            }).thenIdle(10).thenExecute(() -> {
+                if (ropeSceneLastStep(pipeline, rope) != lastStep[0]) {
+                    helper.fail("Rope scene did not sleep before " + names[mutation]);
+                }
+                mutations[mutation].run();
+            }).thenIdle(3).thenExecute(() -> {
+                if (ropeSceneLastStep(pipeline, rope) <= lastStep[0]) {
+                    helper.fail("Sleeping rope scene was not stepped after " + names[mutation]);
+                }
+                rope.readPose(points);
+                if (mutation == 0 && points.get(1).distanceSquared(previousMiddle) < 1.0e-8) {
+                    helper.fail("Rope pose stayed frozen after changing its length");
+                }
+            });
+        }
+        sequence.thenExecute(rope::remove).thenSucceed();
+    }
 
     @PrefixGameTestTemplate(false)
     @GameTest(template = "physicstest.gravity", batch = "rope-lifetime", timeoutTicks = 280)

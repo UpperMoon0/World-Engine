@@ -234,8 +234,16 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         return this.spatialIndex.getDefaultRegion().getSceneHandle();
     }
 
-    public void registerRopeHandle(RapierRopeHandle rope) { this.liveRopeHandles.add(rope); }
+    public void markRopeRegionDirty(RapierRopeHandle rope) {
+        // Native wake-up alone cannot restart a region removed from the Java work queue.
+        this.markRegionDirty(this.spatialIndex.regionForHandle(rope.sceneHandle()));
+    }
+    public void registerRopeHandle(RapierRopeHandle rope) {
+        this.liveRopeHandles.add(rope);
+        this.markRopeRegionDirty(rope);
+    }
     public void unregisterRopeHandle(RapierRopeHandle rope) {
+        this.markRopeRegionDirty(rope);
         this.liveRopeHandles.remove(rope);
         this.pendingRopeHandles.remove(rope);
         this.ropeObjects.remove(rope);

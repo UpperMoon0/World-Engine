@@ -33,8 +33,10 @@ public final class RapierRopeHandle implements RopeHandle {
     public boolean moveTo(long destination) {
         long moved = Rapier3D.moveRope(this.sceneHandle, destination, this.handle);
         if (moved == 0) return false;
+        this.pipeline.markRopeRegionDirty(this);
         this.sceneHandle = destination;
         this.handle = moved;
+        this.pipeline.markRopeRegionDirty(this);
         return true;
     }
 
@@ -49,6 +51,7 @@ public final class RapierRopeHandle implements RopeHandle {
                     attachment.body() == null ? -1 : Rapier3D.getID(attachment.body()),
                     location.x, location.y, location.z, entry.getKey() == AttachmentPoint.END);
         }
+        if (!this.attachments.isEmpty()) this.pipeline.markRopeRegionDirty(this);
         return ready;
     }
 
@@ -93,6 +96,7 @@ public final class RapierRopeHandle implements RopeHandle {
     @Override
     public void setFirstSegmentLength(final double length) {
         Rapier3D.setRopeFirstSegmentLength(this.sceneHandle, this.handle, length);
+        this.pipeline.markRopeRegionDirty(this);
     }
 
     /**
@@ -101,6 +105,7 @@ public final class RapierRopeHandle implements RopeHandle {
     @Override
     public void removeFirstPoint() {
         Rapier3D.removeRopePointAtStart(this.sceneHandle, this.handle);
+        this.pipeline.markRopeRegionDirty(this);
     }
 
     /**
@@ -109,6 +114,7 @@ public final class RapierRopeHandle implements RopeHandle {
     @Override
     public void addPoint(final Vector3dc position) {
         Rapier3D.addRopePointAtStart(this.sceneHandle, this.handle, position.x(), position.y(), position.z());
+        this.pipeline.markRopeRegionDirty(this);
     }
 
     /**
@@ -126,5 +132,6 @@ public final class RapierRopeHandle implements RopeHandle {
     @Override
     public void wakeUp() {
         Rapier3D.wakeUpRope(this.sceneHandle, this.handle);
+        this.pipeline.markRopeRegionDirty(this);
     }
 }

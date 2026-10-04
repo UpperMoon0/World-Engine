@@ -28,6 +28,7 @@ neoForge {
 }
 
 dependencies {
+    compileOnly project(':worldengine_rapier')
     implementation "dev.ryanhcode.sable:sable-neoforge-$minecraft_version:$sable_version"
     jarJar(runtimeOnly(project(path: ':worldengine_rapier', configuration: 'runtimeElements')))
 }

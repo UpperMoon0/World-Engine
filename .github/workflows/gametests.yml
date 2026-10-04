@@ -34,6 +34,19 @@ jobs:
       - name: Make Gradle Wrapper Executable
         run: chmod +x ./gradlew
 
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install nightly-2026-01-29 --profile minimal
+
+      - name: Test and build current Linux native source
+        working-directory: worldengine_rapier/src/main/rust
+        run: |
+          cargo test --locked -p worldengine_rapier --lib -- --test-threads=1
+          cargo build --locked -p worldengine_rapier --release
+          cp target/release/libworldengine_rapier.so ../resources/natives/worldengine_rapier/worldengine_rapier_x86_64_linux.so
+
+      - name: Package current Linux native for game tests
+        run: ./gradlew worldengine_rapier:packRustNatives
+
       - name: Execute Gradle build
         run: ./gradlew build
 

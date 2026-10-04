@@ -118,7 +118,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
     public RapierPhysicsRegion getDefaultRegion() {
         if (this.defaultRegion == null) {
             // Dedicated auxiliary scene for boxes, ropes and kinematic objects.
-            // ServerSubLevels never share this region.
+            // Rope-attached ServerSubLevels are brought here before attachment.
             this.defaultRegion = this.createRegion(new RegionKey(0, 0, 0));
         }
         return this.defaultRegion;
@@ -293,6 +293,13 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
             }
             if (component.size() < 2) continue;
             RapierPhysicsRegion target = this.getRegion(component.getFirst());
+            // A rope pins its body to the auxiliary scene; move peers to it.
+            for (ServerSubLevel body : component) {
+                if (this.getRegion(body) == this.defaultRegion) {
+                    target = this.defaultRegion;
+                    break;
+                }
+            }
             if (target == null) continue;
             for (ServerSubLevel body : component) {
                 long expiry = this.currentTick + INTERACTION_SPLIT_DELAY_TICKS;
@@ -377,7 +384,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
 
     boolean mergeRegions(RapierPhysicsRegion source, RapierPhysicsRegion destination) {
         if (source == destination) return true;
-        if (source == this.defaultRegion || destination == this.defaultRegion) return false;
+        if (source == this.defaultRegion) return false;
         if (!Rapier3D.mergeScenes(source.getSceneHandle(), destination.getSceneHandle())) return false;
 
         for (ServerSubLevel subLevel : new ArrayList<>(source.getActiveSubLevels())) {

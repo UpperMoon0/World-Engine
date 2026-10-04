@@ -231,6 +231,17 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         return this.spatialIndex.getDefaultRegion().getSceneHandle();
     }
 
+    public void prepareRopeAttachment(ServerSubLevel body) {
+        RapierPhysicsRegion source = this.spatialIndex.ensureResident(body);
+        RapierPhysicsRegion target = (RapierPhysicsRegion) this.spatialIndex.getDefaultRegion();
+        if (source != target && !this.spatialIndex.migrateTo(body, target)) {
+            // Preserve existing joints by moving the entire constrained region.
+            this.spatialIndex.mergeRegions(source, target);
+        }
+        this.streamRegionTerrain(target);
+        this.markRegionDirty(target);
+    }
+
     public long prepareConstraintScene(@Nullable PhysicsPipelineBody bodyA, @Nullable PhysicsPipelineBody bodyB) {
         RapierPhysicsRegion regionA = bodyA instanceof ServerSubLevel subA
                 ? this.spatialIndex.ensureResident(subA)
@@ -238,20 +249,21 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         RapierPhysicsRegion regionB = bodyB instanceof ServerSubLevel subB
                 ? this.spatialIndex.ensureResident(subB)
                 : (bodyB == null ? null : this.getRegion(bodyB));
-        RapierPhysicsRegion target = regionA != null ? regionA : (regionB != null ? regionB : this.spatialIndex.getDefaultRegion());
-
-        if (regionA != null && regionB != null && regionA != regionB) {
-            if (!(bodyB instanceof ServerSubLevel subLevel)) {
-                throw new IllegalStateException(
-                        "Cannot create a cross-region constraint for a non-sublevel body");
-            }
-            if (!this.spatialIndex.migrateTo(subLevel, target)
-                    && !this.spatialIndex.mergeRegions(regionB, target)) {
-                throw new IllegalStateException(
-                        "Cannot coalesce regions for a cross-region constraint");
-            }
-        }
+        RapierPhysicsRegion auxiliary = (RapierPhysicsRegion) this.spatialIndex.getDefaultRegion();
+        RapierPhysicsRegion target = regionA == auxiliary || regionB == auxiliary ? auxiliary
+                : (regionA != null ? regionA : (regionB != null ? regionB : auxiliary));
+        if (regionA != null && regionA != target) this.coalesceConstraintBody(bodyA, regionA, target);
+        if (regionB != null && regionB != target) this.coalesceConstraintBody(bodyB, regionB, target);
         return target.getSceneHandle();
+    }
+
+    private void coalesceConstraintBody(PhysicsPipelineBody body, RapierPhysicsRegion source, RapierPhysicsRegion target) {
+        if (!(body instanceof ServerSubLevel subLevel)) {
+            throw new IllegalStateException("Cannot create a cross-region constraint for a non-sublevel body");
+        }
+        if (!this.spatialIndex.migrateTo(subLevel, target) && !this.spatialIndex.mergeRegions(source, target)) {
+            throw new IllegalStateException("Cannot coalesce regions for a cross-region constraint");
+        }
     }
 
     /**
@@ -874,7 +886,7 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     public RopeHandle addRope(final RopePhysicsObject rope) {
         this.activeRopes.add(rope);
         if (!rope.getPoints().isEmpty()) this.ensureTerrainNear(rope.getPoints().getFirst());
-        RopeHandle handle = RapierRopeHandle.create(this.getDefaultSceneHandle(), rope.getCollisionRadius(), rope.getPoints());
+        RopeHandle handle = RapierRopeHandle.create(this, this.getDefaultSceneHandle(), rope.getCollisionRadius(), rope.getPoints());
         RapierPhysicsRegion region = (RapierPhysicsRegion) this.spatialIndex.getDefaultRegion();
         this.streamRegionTerrain(region);
         this.markRegionDirty(region);

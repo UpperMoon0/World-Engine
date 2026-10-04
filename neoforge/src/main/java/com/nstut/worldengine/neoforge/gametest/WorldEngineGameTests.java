@@ -1,6 +1,11 @@
 package com.nstut.worldengine.neoforge.gametest;
 
 import com.nstut.worldengine.physics.WorldEngineBodyIndex;
+import com.nstut.worldengine.physics.rapier.Rapier3D;
+import com.nstut.worldengine.physics.rapier.RapierPhysicsPipeline;
+import com.nstut.worldengine.physics.rapier.rope.RapierRopeHandle;
+import dev.ryanhcode.sable.api.physics.object.rope.RopeHandle;
+import dev.ryanhcode.sable.api.physics.object.rope.RopePhysicsObject;
 import com.nstut.worldengine.api.WorldEngineTerrainBodies;
 import com.nstut.worldengine.api.WorldEnginePhysicsSystem;
 import com.nstut.worldengine.api.WorldEngineSolverConfiguration;
@@ -26,6 +31,83 @@ import org.joml.Vector3d;
 @GameTestHolder(Sable.MOD_ID)
 public final class WorldEngineGameTests {
     private WorldEngineGameTests() { }
+
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", timeoutTicks = 240)
+    public static void ropeAttachmentSurvivesMissingAndDormantBodies(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos support = helper.absolutePos(new BlockPos(2, 1, 2));
+        BlockPos block = support.above();
+        level.setBlock(support, Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(block, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+        ServerSubLevel body = SubLevelAssemblyHelper.assembleBlocks(level, block, List.of(block),
+                new BoundingBox3i(block.getX(), block.getY(), block.getZ(), block.getX(), block.getY(), block.getZ()));
+        RapierPhysicsPipeline pipeline = (RapierPhysicsPipeline) SubLevelPhysicsSystem.require(level).getPipeline();
+        long scene = Rapier3D.getSceneHandle(level);
+        List<Vector3d> points = List.of(new Vector3d(block.getX(), block.getY() + 2, block.getZ()),
+                new Vector3d(block.getX(), block.getY() + 1, block.getZ()),
+                new Vector3d(block.getX(), block.getY(), block.getZ()));
+        RapierRopeHandle probe = RapierRopeHandle.create(pipeline, scene, 0.1, points);
+        // Call the actual JNI boundary with an absent target: old main aborts here.
+        Rapier3D.setRopeAttachment(scene, probe.handle(), Integer.MAX_VALUE, 0, 0, 0, false);
+        Rapier3D.setRopeAttachment(scene, Long.MAX_VALUE, Integer.MAX_VALUE, 0, 0, 0, true);
+        probe.remove();
+        RopePhysicsObject rope = new RopePhysicsObject(points, 0.1);
+        rope.onAddition(SubLevelPhysicsSystem.require(level));
+        rope.setAttachment(RopeHandle.AttachmentPoint.END, points.getLast(), null);
+        helper.startSequence().thenIdle(160).thenExecute(() -> {
+            if (((WorldEnginePhysicsSystem) SubLevelPhysicsSystem.require(level)).worldengine$activeBodies().contains(body)) {
+                helper.fail("Rope fixture body did not become dormant");
+            }
+            rope.setAttachment(RopeHandle.AttachmentPoint.START, new Vector3d(), body);
+            if (pipeline.prepareConstraintScene(body, null) != scene) {
+                helper.fail("Rope target was not materialized into the rope scene");
+            }
+        }).thenExecuteFor(20, () -> {
+            rope.updatePose();
+            for (Vector3d point : rope.getPoints()) {
+                if (!Double.isFinite(point.x) || !Double.isFinite(point.y) || !Double.isFinite(point.z)) {
+                    helper.fail("Rope pose became non-finite");
+                }
+            }
+        }).thenExecute(rope::onRemoved).thenSucceed();
+    }
+
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", timeoutTicks = 100)
+    public static void ropeAttachmentKeepsExistingConstraints(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ServerSubLevel[] bodies = new ServerSubLevel[2];
+        for (int i = 0; i < 2; i++) {
+            BlockPos block = helper.absolutePos(new BlockPos(2 + i * 2, 2, 2));
+            level.setBlock(block.below(), Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(block, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+            bodies[i] = SubLevelAssemblyHelper.assembleBlocks(level, block, List.of(block),
+                    new BoundingBox3i(block.getX(), block.getY(), block.getZ(), block.getX(), block.getY(), block.getZ()));
+        }
+        RapierPhysicsPipeline pipeline = (RapierPhysicsPipeline) SubLevelPhysicsSystem.require(level).getPipeline();
+        helper.startSequence().thenIdle(2).thenExecute(() -> {
+            long originalScene = pipeline.prepareConstraintScene(bodies[0], bodies[1]);
+            long constraint = Rapier3D.addFixedConstraint(originalScene, Rapier3D.getID(bodies[0]), Rapier3D.getID(bodies[1]),
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+            long ropeScene = Rapier3D.getSceneHandle(level);
+            if (originalScene == ropeScene) helper.fail("Fixture did not create a separate constrained scene");
+            RopePhysicsObject rope = new RopePhysicsObject(
+                    List.of(new Vector3d(0, 3, 0), new Vector3d(0, 2, 0), new Vector3d(0, 1, 0)), 0.1);
+            rope.onAddition(SubLevelPhysicsSystem.require(level));
+            rope.setAttachment(RopeHandle.AttachmentPoint.START, new Vector3d(), bodies[0]);
+            if (pipeline.prepareConstraintScene(bodies[0], bodies[1]) != ropeScene
+                    || !Rapier3D.isConstraintValid(ropeScene, constraint)) {
+                helper.fail("Rope attachment lost an existing body constraint");
+            }
+            // Exercise reversed ordering with the auxiliary scene as body B.
+            if (pipeline.prepareConstraintScene(bodies[1], bodies[0]) != ropeScene) {
+                helper.fail("Constraint preparation moved a rope-pinned body out of its scene");
+            }
+            rope.onRemoved();
+            Rapier3D.removeConstraint(ropeScene, constraint);
+        }).thenSucceed();
+    }
 
     @PrefixGameTestTemplate(false)
     @GameTest(template = "physicstest.gravity", timeoutTicks = 200)

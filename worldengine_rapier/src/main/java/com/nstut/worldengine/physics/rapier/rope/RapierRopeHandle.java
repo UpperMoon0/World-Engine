@@ -2,6 +2,7 @@ package com.nstut.worldengine.physics.rapier.rope;
 
 import dev.ryanhcode.sable.api.physics.object.rope.RopeHandle;
 import com.nstut.worldengine.physics.rapier.Rapier3D;
+import com.nstut.worldengine.physics.rapier.RapierPhysicsPipeline;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import org.jetbrains.annotations.ApiStatus;
 import org.joml.Vector3d;
@@ -10,9 +11,9 @@ import org.joml.Vector3dc;
 import java.util.List;
 
 @ApiStatus.Internal
-public record RapierRopeHandle(long sceneHandle, long handle) implements RopeHandle {
+public record RapierRopeHandle(RapierPhysicsPipeline pipeline, long sceneHandle, long handle) implements RopeHandle {
 
-    public static RapierRopeHandle create(final long sceneHandle, final double pointRadius, final List<Vector3d> points) {
+    public static RapierRopeHandle create(final RapierPhysicsPipeline pipeline, final long sceneHandle, final double pointRadius, final List<Vector3d> points) {
         final double[] coordinates = new double[points.size() * 3];
 
         for (int i = 0; i < points.size(); i++) {
@@ -23,7 +24,7 @@ public record RapierRopeHandle(long sceneHandle, long handle) implements RopeHan
         }
 
         final long handle = Rapier3D.createRope(sceneHandle, pointRadius, points.get(0).distance(points.get(1)), coordinates, points.size());
-        return new RapierRopeHandle(sceneHandle, handle);
+        return new RapierRopeHandle(pipeline, sceneHandle, handle);
     }
 
     /**
@@ -74,6 +75,7 @@ public record RapierRopeHandle(long sceneHandle, long handle) implements RopeHan
      */
     @Override
     public void setAttachment(final AttachmentPoint attachmentPoint, final Vector3dc location, final ServerSubLevel subLevel) {
+        if (subLevel != null && !subLevel.isRemoved()) this.pipeline.prepareRopeAttachment(subLevel);
         Rapier3D.setRopeAttachment(this.sceneHandle, this.handle, subLevel == null ? -1 :  Rapier3D.getID(subLevel), location.x(), location.y(), location.z(), attachmentPoint == AttachmentPoint.END);
     }
 

@@ -33,6 +33,33 @@ public final class WorldEngineGameTests {
     private WorldEngineGameTests() { }
 
     @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", timeoutTicks = 100)
+    public static void ropeAttachmentWaitsForTargetRegistration(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos block = helper.absolutePos(new BlockPos(2, 2, 2));
+        level.setBlock(block.below(), Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(block, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+        ServerSubLevel body = SubLevelAssemblyHelper.assembleBlocks(level, block, List.of(block),
+                new BoundingBox3i(block.getX(), block.getY(), block.getZ(), block.getX(), block.getY(), block.getZ()));
+        RapierPhysicsPipeline pipeline = (RapierPhysicsPipeline) SubLevelPhysicsSystem.require(level).getPipeline();
+        pipeline.remove(body);
+        long auxiliary = Rapier3D.getSceneHandle(level);
+        RapierRopeHandle rope = RapierRopeHandle.create(pipeline, auxiliary, 0.1,
+                List.of(new Vector3d(block.getX(), block.getY(), block.getZ()),
+                        new Vector3d(block.getX(), block.getY() + 1, block.getZ()),
+                        new Vector3d(block.getX(), block.getY() + 2, block.getZ())));
+        rope.setAttachment(RopeHandle.AttachmentPoint.START, new Vector3d(), body);
+        if (rope.sceneHandle() != auxiliary) helper.fail("Unregistered target was materialized prematurely");
+        pipeline.add(body, body.logicalPose());
+        helper.startSequence().thenIdle(2).thenExecute(() -> {
+            if (rope.sceneHandle() == auxiliary || rope.sceneHandle() != pipeline.prepareConstraintScene(body, null)) {
+                helper.fail("Deferred attachment did not move into the newly registered target's scene");
+            }
+            rope.remove();
+        }).thenSucceed();
+    }
+
+    @PrefixGameTestTemplate(false)
     @GameTest(template = "physicstest.gravity", timeoutTicks = 240)
     public static void ropeAttachmentSurvivesMissingAndDormantBodies(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -59,9 +86,10 @@ public final class WorldEngineGameTests {
             if (((WorldEnginePhysicsSystem) SubLevelPhysicsSystem.require(level)).worldengine$activeBodies().contains(body)) {
                 helper.fail("Rope fixture body did not become dormant");
             }
+            long localScene = pipeline.prepareConstraintScene(body, null);
             rope.setAttachment(RopeHandle.AttachmentPoint.START, new Vector3d(), body);
-            if (pipeline.prepareConstraintScene(body, null) != scene) {
-                helper.fail("Rope target was not materialized into the rope scene");
+            if (pipeline.prepareConstraintScene(body, null) != localScene || localScene == scene) {
+                helper.fail("Rope attachment moved the target out of its local scene");
             }
         }).thenExecuteFor(20, () -> {
             rope.updatePose();
@@ -96,16 +124,16 @@ public final class WorldEngineGameTests {
                     List.of(new Vector3d(0, 3, 0), new Vector3d(0, 2, 0), new Vector3d(0, 1, 0)), 0.1);
             rope.onAddition(SubLevelPhysicsSystem.require(level));
             rope.setAttachment(RopeHandle.AttachmentPoint.START, new Vector3d(), bodies[0]);
-            if (pipeline.prepareConstraintScene(bodies[0], bodies[1]) != ropeScene
-                    || !Rapier3D.isConstraintValid(ropeScene, constraint)) {
+            if (pipeline.prepareConstraintScene(bodies[0], bodies[1]) != originalScene
+                    || !Rapier3D.isConstraintValid(originalScene, constraint)) {
                 helper.fail("Rope attachment lost an existing body constraint");
             }
             // Exercise reversed ordering with the auxiliary scene as body B.
-            if (pipeline.prepareConstraintScene(bodies[1], bodies[0]) != ropeScene) {
+            if (pipeline.prepareConstraintScene(bodies[1], bodies[0]) != originalScene) {
                 helper.fail("Constraint preparation moved a rope-pinned body out of its scene");
             }
             rope.onRemoved();
-            Rapier3D.removeConstraint(ropeScene, constraint);
+            Rapier3D.removeConstraint(originalScene, constraint);
         }).thenSucceed();
     }
 

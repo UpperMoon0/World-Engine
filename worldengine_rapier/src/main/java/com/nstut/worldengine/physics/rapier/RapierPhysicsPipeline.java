@@ -107,6 +107,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     private final Object2ObjectMap<KinematicContraption, TrackedKinematicContraption> activeContraptions = new Object2ObjectOpenHashMap<>();
     private final List<BoxPhysicsObject> activeBoxes = new ArrayList<>();
     private final List<RopePhysicsObject> activeRopes = new ArrayList<>();
+    private final Set<RapierRopeHandle> liveRopeHandles = new ReferenceOpenHashSet<>();
+    private final Set<RapierRopeHandle> pendingRopeHandles = new ReferenceOpenHashSet<>();
+    private final Map<RapierRopeHandle, RopePhysicsObject> ropeObjects = new LinkedHashMap<>();
     private final Long2LongOpenHashMap recentCollisions = new Long2LongOpenHashMap();
     private final Long2ObjectMap<int[]> globalChunkCache = new Long2ObjectOpenHashMap<>();
     private final Long2ObjectMap<ReferenceOpenHashSet<RapierPhysicsRegion>> terrainSectionRegions = new Long2ObjectOpenHashMap<>();
@@ -231,15 +234,35 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         return this.spatialIndex.getDefaultRegion().getSceneHandle();
     }
 
-    public void prepareRopeAttachment(ServerSubLevel body) {
-        RapierPhysicsRegion source = this.spatialIndex.ensureResident(body);
-        RapierPhysicsRegion target = (RapierPhysicsRegion) this.spatialIndex.getDefaultRegion();
-        if (source != target && !this.spatialIndex.migrateTo(body, target)) {
-            // Preserve existing joints by moving the entire constrained region.
-            this.spatialIndex.mergeRegions(source, target);
+    public void registerRopeHandle(RapierRopeHandle rope) { this.liveRopeHandles.add(rope); }
+    public void unregisterRopeHandle(RapierRopeHandle rope) {
+        this.liveRopeHandles.remove(rope);
+        this.pendingRopeHandles.remove(rope);
+        this.ropeObjects.remove(rope);
+    }
+    public void deferRopeAttachments(RapierRopeHandle rope) { this.pendingRopeHandles.add(rope); }
+    boolean hasRopes(RapierPhysicsRegion region) {
+        for (RapierRopeHandle rope : this.liveRopeHandles) {
+            if (rope.sceneHandle() == region.getSceneHandle()) return true;
         }
+        return false;
+    }
+
+    public boolean prepareRopeAttachment(RapierRopeHandle rope, ServerSubLevel body) {
+        if (this.registeredSubLevels.get(Rapier3D.getID(body)) != body) return false;
+        RapierPhysicsRegion target = this.spatialIndex.ensureResident(body);
+        RapierPhysicsRegion source = this.spatialIndex.regionForHandle(rope.sceneHandle());
+        if (source == target) return true;
+        if (!rope.moveTo(target.getSceneHandle())) {
+            // A rope already bound to a body stays in that body's local scene.
+            if (!this.spatialIndex.migrateTo(body, source) && !this.spatialIndex.mergeRegions(target, source)) return false;
+            target = source;
+        }
+        this.streamRegionTerrain(source);
         this.streamRegionTerrain(target);
+        this.markRegionDirty(source);
         this.markRegionDirty(target);
+        return true;
     }
 
     public long prepareConstraintScene(@Nullable PhysicsPipelineBody bodyA, @Nullable PhysicsPipelineBody bodyB) {
@@ -250,8 +273,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
                 ? this.spatialIndex.ensureResident(subB)
                 : (bodyB == null ? null : this.getRegion(bodyB));
         RapierPhysicsRegion auxiliary = (RapierPhysicsRegion) this.spatialIndex.getDefaultRegion();
-        RapierPhysicsRegion target = regionA == auxiliary || regionB == auxiliary ? auxiliary
-                : (regionA != null ? regionA : (regionB != null ? regionB : auxiliary));
+        RapierPhysicsRegion target = regionA != null && this.hasRopes(regionA) ? regionA
+                : (regionB != null && this.hasRopes(regionB) ? regionB
+                : (regionA != null ? regionA : (regionB != null ? regionB : auxiliary)));
         if (regionA != null && regionA != target) this.coalesceConstraintBody(bodyA, regionA, target);
         if (regionB != null && regionB != target) this.coalesceConstraintBody(bodyB, regionB, target);
         return target.getSceneHandle();
@@ -293,6 +317,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
             this.spatialIndex.dispose();
             this.spatialIndex = null;
         }
+        this.liveRopeHandles.clear();
+        this.pendingRopeHandles.clear();
+        this.ropeObjects.clear();
         this.activeRegions.clear();
         this.dirtyRegions.clear();
         this.steppedRegions.clear();
@@ -314,6 +341,9 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
      */
     @Override
     public void prePhysicsTicks() {
+        if (!this.pendingRopeHandles.isEmpty()) {
+            this.pendingRopeHandles.removeIf(RapierRopeHandle::retryAttachments);
+        }
         if (this.universeHandle == 0) return;
         // Universe deadlines and ballistic elapsed time use server ticks. The
         // region counter below advances once per solver substep instead.
@@ -775,28 +805,34 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         // Non-sublevel objects are few and have no persistent body id. Keep
         // their footprint under one reserved owner while body footprints stay
         // fully incremental.
-        if (region == this.spatialIndex.getDefaultRegion()) {
+        if (region == this.spatialIndex.getDefaultRegion() || this.hasRopes(region)) {
             this.activeBoxes.removeIf(box -> !box.isActive());
             this.activeRopes.removeIf(rope -> !rope.isActive());
             LongSet desired = this.activeContraptions.isEmpty() && this.activeBoxes.isEmpty() && this.activeRopes.isEmpty()
                     ? it.unimi.dsi.fastutil.longs.LongSets.EMPTY_SET : new LongOpenHashSet();
-            for (KinematicContraption contraption : this.activeContraptions.keySet()) {
+            for (KinematicContraption contraption : region == this.spatialIndex.getDefaultRegion()
+                    ? this.activeContraptions.keySet() : java.util.Collections.<KinematicContraption>emptySet()) {
                 Vector3dc pos = contraption.sable$getPosition();
                 this.addTerrainRange(desired, pos.x() - 32.0, pos.y() - 32.0, pos.z() - 32.0,
                         pos.x() + 32.0, pos.y() + 32.0, pos.z() + 32.0);
             }
             BoundingBox3d objectBounds = new BoundingBox3d();
-            for (BoxPhysicsObject box : this.activeBoxes) {
+            for (BoxPhysicsObject box : region == this.spatialIndex.getDefaultRegion()
+                    ? this.activeBoxes : java.util.Collections.<BoxPhysicsObject>emptyList()) {
                 box.getBoundingBox(objectBounds);
                 this.addTerrainRange(desired, objectBounds.minX(), objectBounds.minY(), objectBounds.minZ(),
                         objectBounds.maxX(), objectBounds.maxY(), objectBounds.maxZ());
             }
-            for (RopePhysicsObject rope : this.activeRopes) {
+            for (var entry : this.ropeObjects.entrySet()) {
+                if (entry.getKey().sceneHandle() != region.getSceneHandle() || !entry.getValue().isActive()) continue;
+                RopePhysicsObject rope = entry.getValue();
                 rope.getBoundingBox(objectBounds);
                 this.addTerrainRange(desired, objectBounds.minX(), objectBounds.minY(), objectBounds.minZ(),
                         objectBounds.maxX(), objectBounds.maxY(), objectBounds.maxZ());
             }
             region.replaceTerrainFootprint(Integer.MIN_VALUE, desired);
+        } else {
+            region.replaceTerrainFootprint(Integer.MIN_VALUE, it.unimi.dsi.fastutil.longs.LongSets.EMPTY_SET);
         }
 
         for (long key : region.drainChangedTerrainSections()) {
@@ -886,7 +922,8 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
     public RopeHandle addRope(final RopePhysicsObject rope) {
         this.activeRopes.add(rope);
         if (!rope.getPoints().isEmpty()) this.ensureTerrainNear(rope.getPoints().getFirst());
-        RopeHandle handle = RapierRopeHandle.create(this, this.getDefaultSceneHandle(), rope.getCollisionRadius(), rope.getPoints());
+        RapierRopeHandle handle = RapierRopeHandle.create(this, this.getDefaultSceneHandle(), rope.getCollisionRadius(), rope.getPoints());
+        this.ropeObjects.put(handle, rope);
         RapierPhysicsRegion region = (RapierPhysicsRegion) this.spatialIndex.getDefaultRegion();
         this.streamRegionTerrain(region);
         this.markRegionDirty(region);

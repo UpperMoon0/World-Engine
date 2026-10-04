@@ -9,9 +9,48 @@ import org.joml.Vector3d;
 import org.joml.Vector3dc;
 
 import java.util.List;
+import java.util.EnumMap;
+import java.util.Map;
 
 @ApiStatus.Internal
-public record RapierRopeHandle(RapierPhysicsPipeline pipeline, long sceneHandle, long handle) implements RopeHandle {
+public final class RapierRopeHandle implements RopeHandle {
+    private record Attachment(Vector3d location, ServerSubLevel body) { }
+    private final RapierPhysicsPipeline pipeline;
+    private long sceneHandle;
+    private long handle;
+    private final Map<AttachmentPoint, Attachment> attachments = new EnumMap<>(AttachmentPoint.class);
+
+    private RapierRopeHandle(RapierPhysicsPipeline pipeline, long sceneHandle, long handle) {
+        this.pipeline = pipeline;
+        this.sceneHandle = sceneHandle;
+        this.handle = handle;
+        pipeline.registerRopeHandle(this);
+    }
+
+    public long sceneHandle() { return this.sceneHandle; }
+    public long handle() { return this.handle; }
+
+    public boolean moveTo(long destination) {
+        long moved = Rapier3D.moveRope(this.sceneHandle, destination, this.handle);
+        if (moved == 0) return false;
+        this.sceneHandle = destination;
+        this.handle = moved;
+        return true;
+    }
+
+    public boolean retryAttachments() {
+        boolean ready = true;
+        for (var entry : this.attachments.entrySet()) {
+            Attachment attachment = entry.getValue();
+            if (attachment.body() != null && !attachment.body().isRemoved()
+                    && !this.pipeline.prepareRopeAttachment(this, attachment.body())) ready = false;
+            Vector3d location = attachment.location();
+            Rapier3D.setRopeAttachment(this.sceneHandle, this.handle,
+                    attachment.body() == null ? -1 : Rapier3D.getID(attachment.body()),
+                    location.x, location.y, location.z, entry.getKey() == AttachmentPoint.END);
+        }
+        return ready;
+    }
 
     public static RapierRopeHandle create(final RapierPhysicsPipeline pipeline, final long sceneHandle, final double pointRadius, final List<Vector3d> points) {
         final double[] coordinates = new double[points.size() * 3];
@@ -44,6 +83,8 @@ public record RapierRopeHandle(RapierPhysicsPipeline pipeline, long sceneHandle,
     @Override
     public void remove() {
         Rapier3D.removeRope(this.sceneHandle, this.handle);
+        this.pipeline.unregisterRopeHandle(this);
+        this.attachments.clear();
     }
 
     /**
@@ -75,8 +116,8 @@ public record RapierRopeHandle(RapierPhysicsPipeline pipeline, long sceneHandle,
      */
     @Override
     public void setAttachment(final AttachmentPoint attachmentPoint, final Vector3dc location, final ServerSubLevel subLevel) {
-        if (subLevel != null && !subLevel.isRemoved()) this.pipeline.prepareRopeAttachment(subLevel);
-        Rapier3D.setRopeAttachment(this.sceneHandle, this.handle, subLevel == null ? -1 :  Rapier3D.getID(subLevel), location.x(), location.y(), location.z(), attachmentPoint == AttachmentPoint.END);
+        this.attachments.put(attachmentPoint, new Attachment(new Vector3d(location), subLevel));
+        if (!this.retryAttachments()) this.pipeline.deferRopeAttachments(this);
     }
 
     /**

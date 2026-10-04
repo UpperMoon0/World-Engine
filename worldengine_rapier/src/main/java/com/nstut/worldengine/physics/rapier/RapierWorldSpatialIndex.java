@@ -115,10 +115,17 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
         return this.createRegion(key);
     }
 
+    RapierPhysicsRegion regionForHandle(long handle) {
+        for (PhysicsRegion region : this.regions) {
+            if (region.getSceneHandle() == handle) return (RapierPhysicsRegion) region;
+        }
+        throw new IllegalStateException("Rope scene is no longer registered");
+    }
+
     public RapierPhysicsRegion getDefaultRegion() {
         if (this.defaultRegion == null) {
             // Dedicated auxiliary scene for boxes, ropes and kinematic objects.
-            // Rope-attached ServerSubLevels are brought here before attachment.
+            // Ropes move to a sublevel region when attached to a body.
             this.defaultRegion = this.createRegion(new RegionKey(0, 0, 0));
         }
         return this.defaultRegion;
@@ -293,10 +300,10 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
             }
             if (component.size() < 2) continue;
             RapierPhysicsRegion target = this.getRegion(component.getFirst());
-            // A rope pins its body to the auxiliary scene; move peers to it.
+            // Keep peers in the local scene containing a body-attached rope.
             for (ServerSubLevel body : component) {
-                if (this.getRegion(body) == this.defaultRegion) {
-                    target = this.defaultRegion;
+                if (this.pipeline.hasRopes(this.getRegion(body))) {
+                    target = this.getRegion(body);
                     break;
                 }
             }
@@ -384,7 +391,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
 
     boolean mergeRegions(RapierPhysicsRegion source, RapierPhysicsRegion destination) {
         if (source == destination) return true;
-        if (source == this.defaultRegion) return false;
+        if (source == this.defaultRegion || destination == this.defaultRegion) return false;
         if (!Rapier3D.mergeScenes(source.getSceneHandle(), destination.getSceneHandle())) return false;
 
         for (ServerSubLevel subLevel : new ArrayList<>(source.getActiveSubLevels())) {

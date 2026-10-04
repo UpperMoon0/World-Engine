@@ -1,3 +1,3 @@
-# World Engine 0.1.0
+# World Engine 0.1.1
 
-See the versioned release notes at [changelog/0.1.0.md](changelog/0.1.0.md).
+See the versioned release notes at [changelog/0.1.1.md](changelog/0.1.1.md).

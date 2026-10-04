@@ -47,7 +47,10 @@ plugins {
 // This should match the folder name of the project, or else IDEA may complain (see https://youtrack.jetbrains.com/issue/IDEA-317606)
 rootProject.name = 'world-engine'
 include('common')
-include('fabric')
+if (!providers.gradleProperty('benchmarkEngine').isPresent()) include('fabric')
 include('neoforge')
 
 include('worldengine_rapier')
+
+// Opt-in harness: never included in release builds or release jars.
+if (providers.gradleProperty('benchmarkEngine').isPresent()) include('benchmark')

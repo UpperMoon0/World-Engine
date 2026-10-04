@@ -141,3 +141,5 @@ runs/
 macos/*.dmg
 
 **/.intentionally-empty-file.o
+
+__pycache__/

@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev'
+}
+
+java { toolchain.languageVersion = JavaLanguageVersion.of(21) }
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.ryanhcode.dev/releases' }
+    maven { url = 'https://maven.blamejared.com' }
+    maven { url = 'https://maven.createmod.net' }
+    maven { url = 'https://maven.ithundxr.dev/hidden' }
+    maven { url = 'https://maven.ithundxr.dev/snapshots' }
+    maven { url = 'https://maven.tterrag.com' }
+}
+def engine = providers.gradleProperty('benchmarkEngine').getOrElse('sable')
+if (!(engine in ['sable', 'worldengine'])) throw new GradleException('Invalid benchmarkEngine')
+if (engine == 'worldengine') evaluationDependsOn(':neoforge')
+neoForge {
+    version = neoforge_version
+    runs {
+        server {
+            server()
+            gameDirectory = file(providers.environmentVariable('WE_BENCH_GAME_DIR').getOrElse('build/benchmark-server'))
+            programArgument '--nogui'
+            jvmArgument '-Xms2G'
+            jvmArgument '-Xmx2G'
+            if (providers.environmentVariable('WE_BENCH_PROFILE').getOrElse('false') == 'true') {
+                jvmArgument "-XX:StartFlightRecording=filename=${gameDirectory.get().asFile}/profile.jfr,settings=profile,dumponexit=true"
+                jvmArgument '-XX:FlightRecorderOptions=stackdepth=128'
+            }
+            def nativeProfile = providers.environmentVariable('WE_BENCH_NATIVE_PROFILE_PATH').getOrElse('')
+            if (engine == 'worldengine' && !nativeProfile.isBlank()) {
+                if (providers.environmentVariable('WE_BENCH_PROFILE').getOrElse('false') != 'true') {
+                    throw new GradleException('Development native overrides require a diagnostic profile run')
+                }
+                systemProperty 'worldengine.rapier.nativePath', nativeProfile
+            }
+            systemProperty 'we.benchmark.engine', engine
+        }
+    }
+    mods {
+        we_benchmark { sourceSet sourceSets.main }
+        if (engine == 'worldengine') {
+            worldengine { sourceSet project(':neoforge').sourceSets.main }
+        }
+    }
+}
+dependencies {
+    implementation "dev.ryanhcode.sable:sable-neoforge-$minecraft_version:$sable_version"
+    if (engine == 'worldengine') {
+        runtimeOnly project(path: ':worldengine_rapier', configuration: 'runtimeElements')
+    }
+}

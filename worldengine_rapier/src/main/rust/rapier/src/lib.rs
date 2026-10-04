@@ -1001,8 +1001,7 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_mergeS
     let mut destination_data = destination.sable_data.write().unwrap();
     let mut destination_sim = destination.sim_data.write().unwrap();
 
-    if !source_data.rope_map.is_empty()
-        || source_data
+    if source_data
             .level_colliders
             .values()
             .any(|collider| collider.static_mount.is_some())
@@ -1083,6 +1082,7 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_rebase
         sable.octree_chunks.clear();
         sable.terrain_serial_callback_sections = 0;
 
+        crate::rope::rebase_points(&sable.rope_map, &mut sim.rigid_body_set, delta.into());
         let delta_f32 = Vec3::new(delta.x as f32, delta.y as f32, delta.z as f32);
         for (_id, handle) in &sable.rigid_bodies {
             if let Some(rb) = sim.rigid_body_set.get_mut(*handle) {

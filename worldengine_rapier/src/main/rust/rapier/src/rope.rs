@@ -21,7 +21,7 @@ const MIN_BOUND_STIFFNESS: Real = 150.0;
 const MIN_BOUND_DAMPING: Real = 10.0;
 
 struct RopeAttachment {
-    joint: ImpulseJointHandle,
+    joint: Option<ImpulseJointHandle>,
     sub_level_id: Option<LevelColliderID>,
     location: DVec3,
 }
@@ -60,67 +60,156 @@ impl RopeMap {
     }
 }
 
+fn world_origin(scene: &PhysicsScene) -> DVec3 {
+    (*scene.world_origin.read().unwrap()).into()
+}
+
+// Attachment intent survives load ordering and body removal. Missing native bodies
+// are retried on the next tick instead of panicking across the JNI boundary.
+fn refresh_attachment(
+    attachment: &mut RopeAttachment,
+    point: Option<RigidBodyHandle>,
+    ground: Option<RigidBodyHandle>,
+    bodies: &HashMap<LevelColliderID, RigidBodyHandle>,
+    colliders: &HashMap<LevelColliderID, crate::ActiveLevelColliderInfo>,
+    rigid_bodies: &rapier3d::prelude::RigidBodySet,
+    joints: &mut ImpulseJointSet,
+    origin: DVec3,
+) {
+    let target = attachment
+        .sub_level_id
+        .and_then(|id| bodies.get(&id).copied())
+        .or_else(|| {
+            if attachment.sub_level_id.is_none() {
+                ground
+            } else {
+                None
+            }
+        });
+    let anchor = match attachment.sub_level_id {
+        Some(id) => colliders
+            .get(&id)
+            .and_then(|c| c.center_of_mass)
+            .map(|com| attachment.location - com),
+        None => Some(attachment.location - origin),
+    };
+    let valid = target
+        .zip(point)
+        .zip(anchor)
+        .filter(|((target, point), _)| {
+            rigid_bodies.contains(*target) && rigid_bodies.contains(*point)
+        });
+    let Some(((target, point), anchor)) = valid else {
+        if let Some(joint) = attachment.joint.take() {
+            joints.remove(joint, true);
+        }
+        return;
+    };
+    if let Some(joint) = attachment.joint.and_then(|h| joints.get_mut(h, false)) {
+        if joint.body1 == target && joint.body2 == point {
+            joint.data.set_local_anchor1(anchor.as_vec3());
+            return;
+        }
+    }
+    if let Some(old) = attachment.joint.take() {
+        joints.remove(old, true);
+    }
+    let joint = RopeJointBuilder::new(0.0)
+        .local_anchor1(anchor.as_vec3())
+        .local_anchor2(Vec3::ZERO)
+        .softness(SpringCoefficients::new(
+            JOINT_SPRING_FREQUENCY,
+            JOINT_SPRING_DAMPING_RATIO,
+        ));
+    attachment.joint = Some(joints.insert(target, point, joint.build(), true));
+}
+
+fn refresh_ropes(
+    ropes: &mut RopeMap,
+    ground: Option<RigidBodyHandle>,
+    bodies: &HashMap<LevelColliderID, RigidBodyHandle>,
+    colliders: &HashMap<LevelColliderID, crate::ActiveLevelColliderInfo>,
+    rigid_bodies: &rapier3d::prelude::RigidBodySet,
+    joints: &mut ImpulseJointSet,
+    origin: DVec3,
+) {
+    for rope in ropes.ropes.values_mut() {
+        if let Some(attachment) = &mut rope.start_attachment {
+            refresh_attachment(
+                attachment,
+                rope.points.first().copied(),
+                ground,
+                bodies,
+                colliders,
+                rigid_bodies,
+                joints,
+                origin,
+            );
+        }
+        if let Some(attachment) = &mut rope.end_attachment {
+            refresh_attachment(
+                attachment,
+                rope.points.last().copied(),
+                ground,
+                bodies,
+                colliders,
+                rigid_bodies,
+                joints,
+                origin,
+            );
+        }
+    }
+}
+
 pub fn tick(scene: &PhysicsScene) {
     let mut sable_data = scene.sable_data.write().unwrap();
-        let mut universe = scene.universe.write().unwrap();
     let mut sim = scene.sim_data.write().unwrap();
+    let SableSceneData {
+        rope_map,
+        rigid_bodies,
+        level_colliders,
+        ..
+    } = &mut *sable_data;
+    let SimulationSceneData {
+        rigid_body_set,
+        impulse_joint_set,
+        ..
+    } = &mut *sim;
+    refresh_ropes(
+        rope_map,
+        scene.ground_handle,
+        rigid_bodies,
+        level_colliders,
+        rigid_body_set,
+        impulse_joint_set,
+        world_origin(scene),
+    );
+}
 
-    let mut dead_start_attachments = Vec::new();
-    let mut dead_end_attachments = Vec::new();
-
-    for (id, rope) in sable_data.rope_map.ropes.iter() {
-        if let Some(attachment) = &rope.start_attachment {
-            if !sim.impulse_joint_set.contains(attachment.joint) {
-                dead_start_attachments.push(id.clone());
-            } else {
-                let local_anchor = attachment.location
-                    - if let Some(id_b) = attachment.sub_level_id {
-                        let rb_b = &sable_data.level_colliders[&id_b];
-                        rb_b.center_of_mass.unwrap()
-                    } else {
-                        DVec3::ZERO
-                    };
-
-                let impulse_joint = sim
-                    .impulse_joint_set
-                    .get_mut(attachment.joint, false)
-                    .unwrap();
-                impulse_joint.data.set_local_anchor1(local_anchor.as_vec3());
-            }
-        }
-
-        if let Some(attachment) = &rope.end_attachment {
-            if !sim.impulse_joint_set.contains(attachment.joint) {
-                dead_end_attachments.push(id.clone());
-            } else {
-                let local_anchor = attachment.location
-                    - if let Some(id_b) = attachment.sub_level_id {
-                        let rb_b = &sable_data.level_colliders[&id_b];
-                        rb_b.center_of_mass.unwrap()
-                    } else {
-                        DVec3::ZERO
-                    };
-
-                let impulse_joint = sim
-                    .impulse_joint_set
-                    .get_mut(attachment.joint, false)
-                    .unwrap();
-                impulse_joint.data.set_local_anchor1(local_anchor.as_vec3());
-            }
-        }
+fn set_attachment(
+    ropes: &mut RopeMap,
+    joints: &mut ImpulseJointSet,
+    rope_id: usize,
+    sub_level_id: Option<LevelColliderID>,
+    location: DVec3,
+    end: bool,
+) {
+    let Some(strand) = ropes.ropes.get_mut(&rope_id) else {
+        return;
+    };
+    let slot = if end {
+        &mut strand.end_attachment
+    } else {
+        &mut strand.start_attachment
+    };
+    if let Some(joint) = slot.take().and_then(|old| old.joint) {
+        joints.remove(joint, true);
     }
-
-    for id in dead_start_attachments {
-        if let Some(rope) = sable_data.rope_map.ropes.get_mut(&id) {
-            rope.start_attachment = None;
-        }
-    }
-
-    for id in dead_end_attachments {
-        if let Some(rope) = sable_data.rope_map.ropes.get_mut(&id) {
-            rope.end_attachment = None;
-        }
-    }
+    *slot = Some(RopeAttachment {
+        joint: None,
+        sub_level_id,
+        location,
+    });
 }
 
 #[unsafe(no_mangle)]
@@ -145,11 +234,12 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_create
 
         let mut vec = Vec::with_capacity(num_points as usize);
         for i in 0..(num_points as usize) {
-            let coordinate = Vec3::new(
-                coordinates[i * 3] as Real,
-                coordinates[i * 3 + 1] as Real,
-                coordinates[i * 3 + 2] as Real,
-            );
+            let coordinate = (DVec3::new(
+                coordinates[i * 3],
+                coordinates[i * 3 + 1],
+                coordinates[i * 3 + 2],
+            ) - world_origin(scene))
+            .as_vec3();
 
             let handle = create_rope_body(
                 &mut sim_data,
@@ -298,7 +388,8 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_queryR
                     .unwrap()
                     .position()
                     .translation;
-                vec![pos.x as f64, pos.y as f64, pos.z as f64]
+                let world = pos.as_dvec3() + world_origin(scene);
+                vec![world.x, world.y, world.z]
             })
             .collect();
 
@@ -414,10 +505,9 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_remove
         );
 
         if strand.start_attachment.is_some() {
-            sim_data
-                .impulse_joint_set
-                .remove(strand.start_attachment.as_ref().unwrap().joint, true);
-            strand.start_attachment = None;
+            if let Some(joint) = strand.start_attachment.take().and_then(|a| a.joint) {
+                sim_data.impulse_joint_set.remove(joint, true);
+            }
         }
     })
 }
@@ -455,7 +545,7 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_addRop
         let handle = create_rope_body(
             &mut sim_data,
             universal_drag,
-            Vec3::new(x as Real, y as Real, z as Real),
+            (DVec3::new(x, y, z) - world_origin(scene)).as_vec3(),
             point_radius,
         );
         strand.joints.insert(
@@ -470,10 +560,9 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_addRop
         strand.points.insert(0, handle);
 
         if strand.start_attachment.is_some() {
-            sim_data
-                .impulse_joint_set
-                .remove(strand.start_attachment.as_ref().unwrap().joint, true);
-            strand.start_attachment = None;
+            if let Some(joint) = strand.start_attachment.take().and_then(|a| a.joint) {
+                sim_data.impulse_joint_set.remove(joint, true);
+            }
         }
     })
 }
@@ -518,74 +607,566 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_setRop
     end: jboolean,
 ) {
     with_handle(handle, |scene| {
-        let ground_handle = scene.ground_handle.unwrap();
         let mut sable_data = scene.sable_data.write().unwrap();
-        let mut universe = scene.universe.write().unwrap();
-        let mut sim_data = scene.sim_data.write().unwrap();
+        let mut sim = scene.sim_data.write().unwrap();
         let SableSceneData {
             rope_map,
             rigid_bodies,
+            level_colliders,
             ..
         } = &mut *sable_data;
-
-        let strand = rope_map.ropes.get_mut(&(rope_id as usize)).unwrap();
-
-        let rope_body = if end > 0 {
-            strand.points.last()
-        } else {
-            strand.points.first()
-        }
-        .unwrap();
-        let sub_level_body = if sub_level_id == -1 {
-            ground_handle
-        } else {
-            *rigid_bodies
-                .get(&(sub_level_id as LevelColliderID))
-                .unwrap()
-        };
-
-        let joint = RopeJointBuilder::new(0.0)
-            .local_anchor1(Vec3::ZERO)
-            .local_anchor2(Vec3::ZERO)
-            .softness(SpringCoefficients::new(
-                JOINT_SPRING_FREQUENCY,
-                JOINT_SPRING_DAMPING_RATIO,
-            ));
-        let joint =
-            sim_data
-                .impulse_joint_set
-                .insert(sub_level_body, *rope_body, joint.build(), true);
-
-        if if end > 0 {
-            &strand.end_attachment
-        } else {
-            &strand.start_attachment
-        }
-        .is_some()
-        {
-            let attachment = if end > 0 {
-                &strand.end_attachment
-            } else {
-                &strand.start_attachment
-            }
-            .as_ref()
-            .unwrap();
-            sim_data.impulse_joint_set.remove(attachment.joint, true);
-        }
-        let attachment = RopeAttachment {
-            sub_level_id: if sub_level_id == -1 {
+        let SimulationSceneData {
+            rigid_body_set,
+            impulse_joint_set,
+            ..
+        } = &mut *sim;
+        set_attachment(
+            rope_map,
+            impulse_joint_set,
+            rope_id as usize,
+            if sub_level_id == -1 {
                 None
             } else {
                 Some(sub_level_id as LevelColliderID)
             },
-            joint,
-            location: DVec3::new(x, y, z),
-        };
-
-        if end > 0 {
-            strand.end_attachment = Some(attachment);
-        } else {
-            strand.start_attachment = Some(attachment);
-        }
+            DVec3::new(x, y, z),
+            end > 0,
+        );
+        refresh_ropes(
+            rope_map,
+            scene.ground_handle,
+            rigid_bodies,
+            level_colliders,
+            rigid_body_set,
+            impulse_joint_set,
+            world_origin(scene),
+        );
     })
+}
+
+// Move an unbound rope into its target's local scene without moving unrelated
+// sublevels or rounding their world poses into the zero-origin auxiliary scene.
+fn move_rope(source: &PhysicsScene, destination: &PhysicsScene, id: usize) -> Option<usize> {
+    let mut source_data = source.sable_data.write().unwrap();
+    let rope = source_data.rope_map.ropes.get(&id)?;
+    let mut source_sim = source.sim_data.write().unwrap();
+    if [&rope.start_attachment, &rope.end_attachment]
+        .iter()
+        .any(|a| {
+            a.as_ref().is_some_and(|a| {
+                a.sub_level_id.is_some()
+                    && a.joint
+                        .is_some_and(|joint| source_sim.impulse_joint_set.contains(joint))
+            })
+        })
+    {
+        return None;
+    }
+    if rope
+        .points
+        .iter()
+        .any(|p| !source_sim.rigid_body_set.contains(*p))
+    {
+        return None;
+    }
+    let mut rope = source_data.rope_map.ropes.remove(&id)?;
+    let delta = world_origin(source) - world_origin(destination);
+    let mut destination_data = destination.sable_data.write().unwrap();
+    let mut destination_sim = destination.sim_data.write().unwrap();
+    let mut points = Vec::with_capacity(rope.points.len());
+    for old_handle in &rope.points {
+        let old = &source_sim.rigid_body_set[*old_handle];
+        let position = (old.translation().as_dvec3() + delta).as_vec3();
+        let velocity = old.linvel();
+        let sleeping = old.is_sleeping();
+        let handle = create_rope_body(
+            &mut destination_sim,
+            destination.universal_drag,
+            position,
+            rope.point_radius,
+        );
+        let body = &mut destination_sim.rigid_body_set[handle];
+        body.set_linvel(velocity, true);
+        if sleeping {
+            body.sleep();
+        }
+        points.push(handle);
+    }
+    let mut joints = Vec::with_capacity(points.len().saturating_sub(1));
+    for i in 0..points.len().saturating_sub(1) {
+        joints.push(add_rope_joint(
+            &mut destination_sim.impulse_joint_set,
+            &points[i],
+            &points[i + 1],
+            if i == 0 { rope.first_joint_length } else { 1.0 },
+        ));
+    }
+    for attachment in [&mut rope.start_attachment, &mut rope.end_attachment]
+        .into_iter()
+        .flatten()
+    {
+        if let Some(joint) = attachment.joint.take() {
+            source_sim.impulse_joint_set.remove(joint, true);
+        }
+    }
+    for handle in rope.points {
+        let SimulationSceneData {
+            rigid_body_set,
+            island_manager,
+            collider_set,
+            impulse_joint_set,
+            multibody_joint_set,
+            ..
+        } = &mut *source_sim;
+        rigid_body_set.remove(
+            handle,
+            island_manager,
+            collider_set,
+            impulse_joint_set,
+            multibody_joint_set,
+            true,
+        );
+    }
+    rope.points = points;
+    rope.joints = joints;
+    destination_data.rope_map.counting_id += 1;
+    let new_id = destination_data.rope_map.counting_id;
+    destination_data.rope_map.ropes.insert(new_id, rope);
+    let SableSceneData {
+        rope_map,
+        rigid_bodies,
+        level_colliders,
+        ..
+    } = &mut *destination_data;
+    let SimulationSceneData {
+        rigid_body_set,
+        impulse_joint_set,
+        ..
+    } = &mut *destination_sim;
+    refresh_ropes(
+        rope_map,
+        destination.ground_handle,
+        rigid_bodies,
+        level_colliders,
+        rigid_body_set,
+        impulse_joint_set,
+        world_origin(destination),
+    );
+    Some(new_id)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_moveRope(
+    _env: JNIEnv,
+    _class: JClass,
+    source_handle: jlong,
+    destination_handle: jlong,
+    rope_id: jlong,
+) -> jlong {
+    if source_handle == 0 || destination_handle == 0 {
+        return 0;
+    }
+    if source_handle == destination_handle {
+        return rope_id;
+    }
+    let source = unsafe { &*(source_handle as *const PhysicsScene) };
+    let destination = unsafe { &*(destination_handle as *const PhysicsScene) };
+    move_rope(source, destination, rope_id as usize).unwrap_or(0) as jlong
+}
+
+pub(crate) fn rebase_points(
+    ropes: &RopeMap,
+    bodies: &mut rapier3d::prelude::RigidBodySet,
+    delta: DVec3,
+) {
+    for rope in ropes.ropes.values() {
+        for point in &rope.points {
+            if let Some(body) = bodies.get_mut(*point) {
+                body.set_translation((body.translation().as_dvec3() - delta).as_vec3(), true);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rapier3d::prelude::RigidBodySet;
+
+    struct Fixture {
+        ropes: RopeMap,
+        bodies: HashMap<LevelColliderID, RigidBodyHandle>,
+        colliders: HashMap<LevelColliderID, crate::ActiveLevelColliderInfo>,
+        rigid_bodies: RigidBodySet,
+        joints: ImpulseJointSet,
+        ground: Option<RigidBodyHandle>,
+    }
+
+    impl Fixture {
+        fn new() -> Self {
+            let mut rigid_bodies = RigidBodySet::new();
+            let ground = Some(rigid_bodies.insert(RigidBodyBuilder::fixed().build()));
+            let points = (0..3)
+                .map(|_| rigid_bodies.insert(RigidBodyBuilder::dynamic().build()))
+                .collect();
+            let mut ropes = RopeMap::default();
+            ropes.ropes.insert(
+                1,
+                RopeStrand {
+                    points,
+                    joints: Vec::new(),
+                    point_radius: 0.1,
+                    first_joint_length: 1.0,
+                    start_attachment: None,
+                    end_attachment: None,
+                },
+            );
+            Self {
+                ropes,
+                bodies: HashMap::new(),
+                colliders: HashMap::new(),
+                rigid_bodies,
+                joints: ImpulseJointSet::new(),
+                ground,
+            }
+        }
+        fn attach(&mut self, id: usize, body: Option<usize>, end: bool) {
+            set_attachment(
+                &mut self.ropes,
+                &mut self.joints,
+                id,
+                body,
+                DVec3::new(4.0, 5.0, 6.0),
+                end,
+            );
+            self.tick();
+        }
+        fn tick(&mut self) {
+            refresh_ropes(
+                &mut self.ropes,
+                self.ground,
+                &self.bodies,
+                &self.colliders,
+                &self.rigid_bodies,
+                &mut self.joints,
+                DVec3::ZERO,
+            );
+        }
+        fn add_body(&mut self, id: usize) -> RigidBodyHandle {
+            let handle = self
+                .rigid_bodies
+                .insert(RigidBodyBuilder::dynamic().build());
+            self.bodies.insert(id, handle);
+            let mut info = crate::ActiveLevelColliderInfo::new(None);
+            info.center_of_mass = Some(DVec3::new(1.0, 2.0, 3.0));
+            self.colliders.insert(id, info);
+            handle
+        }
+        fn attachment(&self, end: bool) -> &RopeAttachment {
+            let rope = &self.ropes.ropes[&1];
+            (if end {
+                &rope.end_attachment
+            } else {
+                &rope.start_attachment
+            })
+            .as_ref()
+            .unwrap()
+        }
+    }
+
+    #[test]
+    fn missing_sublevel_is_pending_then_attaches_at_both_ends() {
+        for end in [false, true] {
+            let mut f = Fixture::new();
+            // Issue #3: target exists outside this scene (or has not loaded yet).
+            f.attach(1, Some(42), end);
+            assert!(f.attachment(end).joint.is_none());
+            assert_eq!(f.joints.len(), 0);
+            f.tick();
+            assert!(f.attachment(end).joint.is_none());
+            let target = f.add_body(42);
+            f.tick();
+            let joint = f.joints.get(f.attachment(end).joint.unwrap()).unwrap();
+            assert_eq!(joint.body1, target);
+            assert_eq!(
+                joint.body2,
+                f.ropes.ropes[&1].points[if end { 2 } else { 0 }]
+            );
+            assert_eq!(joint.data.local_anchor1(), Vec3::new(3.0, 3.0, 3.0));
+            let first = f.attachment(end).joint;
+            f.tick();
+            assert_eq!(f.attachment(end).joint, first);
+            assert_eq!(f.joints.len(), 1);
+        }
+    }
+
+    #[test]
+    fn ground_attachment_works_without_sublevels_or_center_of_mass() {
+        let mut f = Fixture::new();
+        for end in [false, true] {
+            f.attach(1, None, end);
+            let joint = f.joints.get(f.attachment(end).joint.unwrap()).unwrap();
+            assert_eq!(Some(joint.body1), f.ground);
+            assert_eq!(joint.data.local_anchor1(), Vec3::new(4.0, 5.0, 6.0));
+        }
+        assert_eq!(f.joints.len(), 2);
+    }
+
+    #[test]
+    fn missing_collider_or_center_of_mass_is_retried() {
+        let mut f = Fixture::new();
+        f.add_body(42);
+        let mut info = f.colliders.remove(&42).unwrap();
+        f.attach(1, Some(42), false);
+        assert!(f.attachment(false).joint.is_none());
+        info.center_of_mass = None;
+        f.colliders.insert(42, info);
+        f.tick();
+        assert!(f.attachment(false).joint.is_none());
+        f.colliders.get_mut(&42).unwrap().center_of_mass = Some(DVec3::ZERO);
+        f.tick();
+        assert!(f.attachment(false).joint.is_some());
+    }
+
+    #[test]
+    fn replacing_attachment_removes_old_joint_and_preserves_other_end() {
+        let mut f = Fixture::new();
+        f.attach(1, None, false);
+        f.attach(1, None, true);
+        let old = f.attachment(false).joint.unwrap();
+        let end = f.attachment(true).joint;
+        f.attach(1, Some(42), false);
+        assert!(!f.joints.contains(old));
+        assert_eq!(f.joints.len(), 1);
+        assert_eq!(f.attachment(true).joint, end);
+        f.add_body(42);
+        f.tick();
+        assert_eq!(f.joints.len(), 2);
+    }
+
+    #[test]
+    fn removed_target_or_joint_is_recovered_without_stale_handle_use() {
+        let mut f = Fixture::new();
+        f.add_body(42);
+        f.attach(1, Some(42), false);
+        let old = f.attachment(false).joint.unwrap();
+        f.bodies.remove(&42);
+        f.tick();
+        assert!(!f.joints.contains(old));
+        assert!(f.attachment(false).joint.is_none());
+        let target = f.add_body(42);
+        f.tick();
+        let joint = f.attachment(false).joint.unwrap();
+        assert_eq!(f.joints.get(joint).unwrap().body1, target);
+        f.joints.remove(joint, true);
+        f.tick();
+        assert_eq!(f.joints.len(), 1);
+        assert!(f.joints.contains(f.attachment(false).joint.unwrap()));
+    }
+
+    #[test]
+    fn missing_rope_empty_points_and_missing_ground_do_not_panic() {
+        let mut f = Fixture::new();
+        f.attach(999, Some(42), false);
+        assert_eq!(f.joints.len(), 0);
+        f.ground = None;
+        f.attach(1, None, false);
+        assert!(f.attachment(false).joint.is_none());
+        f.ground = Some(f.rigid_bodies.insert(RigidBodyBuilder::fixed().build()));
+        f.ropes.ropes.get_mut(&1).unwrap().points.clear();
+        f.tick();
+        assert!(f.attachment(false).joint.is_none());
+    }
+
+    #[test]
+    fn stale_native_body_handles_stay_pending() {
+        for end in [false, true] {
+            let mut f = Fixture::new();
+            f.add_body(42);
+            f.bodies.insert(42, RigidBodyHandle::invalid());
+            f.attach(1, Some(42), end);
+            assert!(f.attachment(end).joint.is_none());
+            assert_eq!(f.joints.len(), 0);
+            f.add_body(42);
+            f.ropes.ropes.get_mut(&1).unwrap().points = vec![RigidBodyHandle::invalid()];
+            f.tick();
+            assert!(f.attachment(end).joint.is_none());
+        }
+    }
+
+    #[test]
+    fn remapped_body_and_changed_center_of_mass_update_the_attachment() {
+        let mut f = Fixture::new();
+        f.add_body(42);
+        f.attach(1, Some(42), false);
+        let old = f.attachment(false).joint.unwrap();
+        let target = f.add_body(42);
+        f.tick();
+        assert!(!f.joints.contains(old));
+        let current = f.attachment(false).joint.unwrap();
+        assert_eq!(f.joints.get(current).unwrap().body1, target);
+        f.colliders.get_mut(&42).unwrap().center_of_mass = Some(DVec3::new(4.0, 5.0, 6.0));
+        f.tick();
+        assert_eq!(f.attachment(false).joint.unwrap(), current);
+        assert_eq!(
+            f.joints.get(current).unwrap().data.local_anchor1(),
+            Vec3::ZERO
+        );
+        assert_eq!(f.joints.len(), 1);
+    }
+
+    fn scene_with_rope(origin: DVec3) -> PhysicsScene {
+        let mut scene = crate::RegistryScalingHarness::new(0, 0, 0).scene;
+        *scene.world_origin.write().unwrap() = origin.into();
+        let mut sim = scene.sim_data.write().unwrap();
+        scene.ground_handle = Some(sim.rigid_body_set.insert(RigidBodyBuilder::fixed().build()));
+        let mut points = Vec::new();
+        for i in 0..3 {
+            let point = create_rope_body(&mut sim, 0.0, Vec3::new(0.25, i as f32, 0.5), 0.1);
+            sim.rigid_body_set[point].set_linvel(Vec3::new(1.0, 2.0, 3.0), true);
+            points.push(point);
+        }
+        let mut joints = Vec::new();
+        for i in 0..2 {
+            joints.push(add_rope_joint(
+                &mut sim.impulse_joint_set,
+                &points[i],
+                &points[i + 1],
+                if i == 0 { 0.75 } else { 1.0 },
+            ));
+        }
+        let mut sable = scene.sable_data.write().unwrap();
+        sable.rope_map.counting_id = 1;
+        sable.rope_map.ropes.insert(
+            1,
+            RopeStrand {
+                points,
+                joints,
+                point_radius: 0.1,
+                first_joint_length: 0.75,
+                start_attachment: None,
+                end_attachment: None,
+            },
+        );
+        drop(sable);
+        drop(sim);
+        scene
+    }
+
+    #[test]
+    fn rope_scene_transfer_preserves_world_pose_velocity_ids_and_ground_anchor() {
+        let origin = DVec3::new(30_000_000.0, 0.0, -30_000_000.0);
+        let source = scene_with_rope(origin);
+        let destination = scene_with_rope(origin + DVec3::new(512.0, 0.0, 0.0));
+        {
+            let mut sable = source.sable_data.write().unwrap();
+            let mut sim = source.sim_data.write().unwrap();
+            set_attachment(
+                &mut sable.rope_map,
+                &mut sim.impulse_joint_set,
+                1,
+                None,
+                origin + DVec3::new(4.0, 5.0, 6.0),
+                true,
+            );
+        }
+        tick(&source);
+        let new_id = move_rope(&source, &destination, 1).unwrap();
+        assert_eq!(new_id, 2);
+        assert!(source.sable_data.read().unwrap().rope_map.ropes.is_empty());
+        assert_eq!(source.sim_data.read().unwrap().rigid_body_set.len(), 1);
+        assert_eq!(source.sim_data.read().unwrap().impulse_joint_set.len(), 0);
+        let sable = destination.sable_data.read().unwrap();
+        assert!(sable.rope_map.ropes.contains_key(&1));
+        let rope = &sable.rope_map.ropes[&new_id];
+        assert_eq!(rope.first_joint_length, 0.75);
+        assert_eq!(rope.joints.len(), 2);
+        let sim = destination.sim_data.read().unwrap();
+        for (i, handle) in rope.points.iter().enumerate() {
+            let body = &sim.rigid_body_set[*handle];
+            assert_eq!(body.translation(), Vec3::new(-511.75, i as f32, 0.5));
+            assert_eq!(body.linvel(), Vec3::new(1.0, 2.0, 3.0));
+        }
+        let attachment = rope.end_attachment.as_ref().unwrap();
+        let joint = sim
+            .impulse_joint_set
+            .get(attachment.joint.unwrap())
+            .unwrap();
+        assert_eq!(joint.data.local_anchor1(), Vec3::new(-508.0, 5.0, 6.0));
+    }
+
+    #[test]
+    fn bound_rope_cannot_transfer_and_detach_its_existing_sublevel() {
+        let source = scene_with_rope(DVec3::ZERO);
+        let destination = scene_with_rope(DVec3::ZERO);
+        {
+            let mut sable = source.sable_data.write().unwrap();
+            let mut sim = source.sim_data.write().unwrap();
+            let body = sim
+                .rigid_body_set
+                .insert(RigidBodyBuilder::dynamic().build());
+            sable.rigid_bodies.insert(42, body);
+            let mut collider = crate::ActiveLevelColliderInfo::new(None);
+            collider.center_of_mass = Some(DVec3::ZERO);
+            sable.level_colliders.insert(42, collider);
+            set_attachment(
+                &mut sable.rope_map,
+                &mut sim.impulse_joint_set,
+                1,
+                Some(42),
+                DVec3::ZERO,
+                false,
+            );
+        }
+        tick(&source);
+        assert!(move_rope(&source, &destination, 1).is_none());
+        assert!(
+            source.sable_data.read().unwrap().rope_map.ropes[&1]
+                .start_attachment
+                .as_ref()
+                .unwrap()
+                .joint
+                .is_some()
+        );
+        assert_eq!(
+            destination.sable_data.read().unwrap().rope_map.ropes.len(),
+            1
+        );
+    }
+
+    #[test]
+    fn scene_rebase_preserves_rope_world_pose_and_ground_attachment() {
+        let scene = scene_with_rope(DVec3::new(30_000_000.0, 0.0, 0.0));
+        {
+            let mut sable = scene.sable_data.write().unwrap();
+            let mut sim = scene.sim_data.write().unwrap();
+            set_attachment(
+                &mut sable.rope_map,
+                &mut sim.impulse_joint_set,
+                1,
+                None,
+                DVec3::new(30_000_004.0, 5.0, 6.0),
+                true,
+            );
+            rebase_points(
+                &sable.rope_map,
+                &mut sim.rigid_body_set,
+                DVec3::new(512.0, 0.0, 0.0),
+            );
+        }
+        *scene.world_origin.write().unwrap() = DVec3::new(30_000_512.0, 0.0, 0.0).into();
+        tick(&scene);
+        let sable = scene.sable_data.read().unwrap();
+        let sim = scene.sim_data.read().unwrap();
+        let rope = &sable.rope_map.ropes[&1];
+        assert_eq!(
+            sim.rigid_body_set[rope.points[0]].translation(),
+            Vec3::new(-511.75, 0.0, 0.5)
+        );
+        let joint = sim
+            .impulse_joint_set
+            .get(rope.end_attachment.as_ref().unwrap().joint.unwrap())
+            .unwrap();
+        assert_eq!(joint.data.local_anchor1(), Vec3::new(-508.0, 5.0, 6.0));
+    }
 }

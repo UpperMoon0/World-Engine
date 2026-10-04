@@ -115,10 +115,17 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
         return this.createRegion(key);
     }
 
+    RapierPhysicsRegion regionForHandle(long handle) {
+        for (PhysicsRegion region : this.regions) {
+            if (region.getSceneHandle() == handle) return (RapierPhysicsRegion) region;
+        }
+        throw new IllegalStateException("Rope scene is no longer registered");
+    }
+
     public RapierPhysicsRegion getDefaultRegion() {
         if (this.defaultRegion == null) {
             // Dedicated auxiliary scene for boxes, ropes and kinematic objects.
-            // ServerSubLevels never share this region.
+            // Ropes move to a sublevel region when attached to a body.
             this.defaultRegion = this.createRegion(new RegionKey(0, 0, 0));
         }
         return this.defaultRegion;
@@ -179,7 +186,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
     }
 
     void retainRegionIfEmpty(RapierPhysicsRegion region) {
-        if (region == this.defaultRegion || !region.getActiveSubLevels().isEmpty()) return;
+        if (region == this.defaultRegion || !region.getActiveSubLevels().isEmpty() || this.pipeline.hasRopes(region)) return;
         long expiry = this.currentTick + EMPTY_REGION_RETENTION_TICKS;
         if (this.emptyRegionExpiry.putIfAbsent(region, expiry) == null) {
             this.emptyRegionQueue.add(new RegionExpiry(expiry, region));
@@ -293,6 +300,13 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
             }
             if (component.size() < 2) continue;
             RapierPhysicsRegion target = this.getRegion(component.getFirst());
+            // Keep peers in the local scene containing a body-attached rope.
+            for (ServerSubLevel body : component) {
+                if (this.pipeline.hasRopes(this.getRegion(body))) {
+                    target = this.getRegion(body);
+                    break;
+                }
+            }
             if (target == null) continue;
             for (ServerSubLevel body : component) {
                 long expiry = this.currentTick + INTERACTION_SPLIT_DELAY_TICKS;
@@ -363,7 +377,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
             Long currentExpiry = this.emptyRegionExpiry.get(entry.region());
             if (currentExpiry != null && currentExpiry == entry.expiryTick()) {
                 this.emptyRegionExpiry.remove(entry.region());
-                this.disposeRegion(entry.region());
+                if (!this.pipeline.hasRopes(entry.region())) this.disposeRegion(entry.region());
             }
         }
     }
@@ -379,6 +393,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
         if (source == destination) return true;
         if (source == this.defaultRegion || destination == this.defaultRegion) return false;
         if (!Rapier3D.mergeScenes(source.getSceneHandle(), destination.getSceneHandle())) return false;
+        this.pipeline.moveRopes(source, destination);
 
         for (ServerSubLevel subLevel : new ArrayList<>(source.getActiveSubLevels())) {
             source.removeSubLevel(subLevel);

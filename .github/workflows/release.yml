@@ -38,6 +38,8 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Rebuild all release natives from this source
+        run: ./gradlew worldengine_rapier:buildImages worldengine_rapier:buildRustNatives --no-daemon
       - name: Build and test
         run: ./gradlew build neoforge:runGameTest --no-daemon
       - name: Stage release jars

@@ -238,6 +238,14 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         // Native wake-up alone cannot restart a region removed from the Java work queue.
         this.markRegionDirty(this.spatialIndex.regionForHandle(rope.sceneHandle()));
     }
+    public void onRopeTransferred(RapierRopeHandle rope, long sourceHandle) {
+        RapierPhysicsRegion source = this.spatialIndex.regionForHandle(sourceHandle);
+        this.markRegionDirty(source);
+        this.markRopeRegionDirty(rope);
+        // Body removal retained this scene while the rope was still registered there.
+        // Recheck only after the handle points at its successful transfer destination.
+        this.spatialIndex.retainRegionIfEmpty(source);
+    }
     public void registerRopeHandle(RapierRopeHandle rope) {
         this.liveRopeHandles.add(rope);
         this.markRopeRegionDirty(rope);

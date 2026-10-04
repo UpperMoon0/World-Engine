@@ -44,6 +44,17 @@ public final class WorldEngineGameTests {
         }
     }
 
+    // Expiry uses the index's physics-substep clock, rather than the server tick counter.
+    private static long regionLifetimeTick(RapierPhysicsPipeline pipeline) {
+        try {
+            var tickField = RapierWorldSpatialIndex.class.getDeclaredField("currentTick");
+            tickField.setAccessible(true);
+            return tickField.getLong(ropeSceneIndex(pipeline));
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError("Unable to inspect region lifetime clock", exception);
+        }
+    }
+
     // Observe actual scene steps without waking/materializing a body via constraint preparation.
     private static long ropeSceneLastStep(RapierPhysicsPipeline pipeline, RapierRopeHandle rope) {
         try {
@@ -115,6 +126,105 @@ public final class WorldEngineGameTests {
             });
         }
         sequence.thenExecute(rope::remove).thenSucceed();
+    }
+
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", batch = "rope-transfer-expiry", timeoutTicks = 800)
+    public static void emptyRopeSourceExpiresAfterLastTransfer(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        RapierPhysicsPipeline pipeline = (RapierPhysicsPipeline) SubLevelPhysicsSystem.require(level).getPipeline();
+        ServerSubLevel[] bodies = new ServerSubLevel[2];
+        BlockPos origin = helper.absolutePos(new BlockPos(2, 2, 2));
+        int boundary = (int) (Math.floor((origin.getX() + RapierWorldSpatialIndex.REGION_SIZE * 0.5)
+                / RapierWorldSpatialIndex.REGION_SIZE) * RapierWorldSpatialIndex.REGION_SIZE
+                + RapierWorldSpatialIndex.REGION_SIZE * 0.5);
+        BlockPos[] locations = new BlockPos[2];
+        for (int i = 0; i < bodies.length; i++) {
+            BlockPos block = new BlockPos(boundary + (i == 0 ? -8 : 8), origin.getY(), origin.getZ());
+            locations[i] = block;
+            level.setChunkForced(block.getX() >> 4, block.getZ() >> 4, true);
+            for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+                for (int dy = -1; dy <= 3; dy++) {
+                    level.setBlock(block.offset(dx, dy, dz), dy == -1
+                            ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState(), 3);
+                }
+            }
+            level.setBlock(block, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+            bodies[i] = SubLevelAssemblyHelper.assembleBlocks(level, block, List.of(block),
+                    new BoundingBox3i(block.getX(), block.getY(), block.getZ(), block.getX(), block.getY(), block.getZ()));
+        }
+        RapierRopeHandle[] ropes = new RapierRopeHandle[2];
+        List<List<Vector3d>> poses = new java.util.ArrayList<>();
+        long auxiliary = Rapier3D.getSceneHandle(level);
+        for (int i = 0; i < ropes.length; i++) {
+            // Keep the points near their eventual target, so transfer tests cleanup rather than
+            // imposing a long lever arm on the destination body.
+            Vector3d anchor = new Vector3d(bodies[1].logicalPose().position()).add(0, 2 + i, 0);
+            List<Vector3d> points = List.of(new Vector3d(anchor), new Vector3d(anchor).add(1, 0, 0),
+                    new Vector3d(anchor).add(2, 0, 0));
+            poses.add(points);
+            ropes[i] = RapierRopeHandle.create(pipeline, auxiliary, 0.05, points);
+            Vector3d sourceAnchor = new Vector3d(anchor).sub(bodies[0].logicalPose().position());
+            bodies[0].logicalPose().orientation().transformInverse(sourceAnchor);
+            sourceAnchor.add(bodies[0].getMassTracker().getCenterOfMass());
+            ropes[i].setAttachment(RopeHandle.AttachmentPoint.START, sourceAnchor, bodies[0]);
+            ropes[i].setAttachment(RopeHandle.AttachmentPoint.END, points.getLast(), null);
+        }
+        long source = ropes[0].sceneHandle();
+        if (source == auxiliary || ropes[1].sceneHandle() != source) helper.fail("Fixture did not create a shared body scene");
+        bodies[0].markRemoved(); // Let Sable remove the body and its native registration on the next tick.
+        Runnable assertSourceAlive = () -> {
+            if (ropeSceneIndex(pipeline).getRegions().stream().noneMatch(region -> region.getSceneHandle() == source)) {
+                helper.fail("Source scene expired while retained by a rope or before its grace period");
+            }
+        };
+        java.util.function.IntConsumer transfer = index -> {
+            if (bodies[1].isRemoved()) helper.fail("Destination fixture body was removed before transfer");
+            long target = pipeline.prepareConstraintScene(bodies[1], null);
+            if (target == source) helper.fail("Fixture no longer has a separate destination scene");
+            List<Vector3d> points = poses.get(index);
+            ropes[index].readPose(points);
+            // Preserve the current world anchor when attaching to a distant body.
+            Vector3d localAnchor = new Vector3d(points.getFirst()).sub(bodies[1].logicalPose().position());
+            bodies[1].logicalPose().orientation().transformInverse(localAnchor);
+            localAnchor.add(bodies[1].getMassTracker().getCenterOfMass());
+            ropes[index].setAttachment(RopeHandle.AttachmentPoint.START, localAnchor, bodies[1]);
+            if (ropes[index].sceneHandle() != target) helper.fail("Rope did not leave its former scene");
+        };
+        long[] lastTransferTick = new long[1];
+        helper.startSequence().thenIdle(220).thenExecute(() -> {
+            assertSourceAlive.run();
+            transfer.accept(0);
+        }).thenIdle(220).thenExecute(() -> {
+            assertSourceAlive.run(); // The second rope must prevent expiry after the first transfer.
+            transfer.accept(1);
+            ropes[1].remove(); // Removing at the destination must not be needed to reclaim the source.
+            lastTransferTick[0] = regionLifetimeTick(pipeline);
+        }).thenExecuteFor(220, () -> {
+            // Lifecycle ticks advance per physics substep, independently of server tick count.
+            long elapsed = regionLifetimeTick(pipeline) - lastTransferTick[0];
+            if (elapsed < 200) {
+                assertSourceAlive.run();
+            } else if (ropeSceneIndex(pipeline).getRegions().stream().anyMatch(region -> region.getSceneHandle() == source)
+                    || pipeline.worldengine$appliedSolverSettings().containsKey(source)) {
+                helper.fail("Empty source scene was not disposed after the 200-tick grace period");
+            }
+        }).thenExecute(() -> {
+            if (regionLifetimeTick(pipeline) - lastTransferTick[0] < 200) {
+                helper.fail("Fixture did not advance beyond the region grace period");
+            }
+            if (ropeSceneIndex(pipeline).getRegions().stream().noneMatch(region -> region.getSceneHandle() == auxiliary)) {
+                helper.fail("Rope transfer disposed the auxiliary scene");
+            }
+            ropes[0].readPose(poses.getFirst());
+            for (Vector3d point : poses.getFirst()) {
+                if (!Double.isFinite(point.x) || !Double.isFinite(point.y) || !Double.isFinite(point.z)) {
+                    helper.fail("Destination rope did not survive source disposal");
+                }
+            }
+            ropes[0].remove();
+            for (BlockPos block : locations) level.setChunkForced(block.getX() >> 4, block.getZ() >> 4, false);
+        }).thenSucceed();
     }
 
     @PrefixGameTestTemplate(false)

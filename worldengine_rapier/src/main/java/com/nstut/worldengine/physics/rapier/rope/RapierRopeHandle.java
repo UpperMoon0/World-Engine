@@ -31,12 +31,12 @@ public final class RapierRopeHandle implements RopeHandle {
     public long handle() { return this.handle; }
 
     public boolean moveTo(long destination) {
-        long moved = Rapier3D.moveRope(this.sceneHandle, destination, this.handle);
+        long source = this.sceneHandle;
+        long moved = Rapier3D.moveRope(source, destination, this.handle);
         if (moved == 0) return false;
-        this.pipeline.markRopeRegionDirty(this);
         this.sceneHandle = destination;
         this.handle = moved;
-        this.pipeline.markRopeRegionDirty(this);
+        this.pipeline.onRopeTransferred(this, source);
         return true;
     }
 

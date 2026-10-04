@@ -239,6 +239,7 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
         this.liveRopeHandles.remove(rope);
         this.pendingRopeHandles.remove(rope);
         this.ropeObjects.remove(rope);
+        if (this.spatialIndex != null) this.spatialIndex.retainRegionIfEmpty(this.spatialIndex.regionForHandle(rope.sceneHandle()));
     }
     public void deferRopeAttachments(RapierRopeHandle rope) { this.pendingRopeHandles.add(rope); }
     boolean hasRopes(RapierPhysicsRegion region) {
@@ -246,6 +247,14 @@ public class RapierPhysicsPipeline implements PhysicsPipeline, WorldEnginePoseSy
             if (rope.sceneHandle() == region.getSceneHandle()) return true;
         }
         return false;
+    }
+
+    void moveRopes(RapierPhysicsRegion source, RapierPhysicsRegion destination) {
+        for (RapierRopeHandle rope : this.liveRopeHandles) {
+            if (rope.sceneHandle() == source.getSceneHandle() && !rope.moveTo(destination.getSceneHandle())) {
+                throw new IllegalStateException("Unable to transfer a rope after merging its body scene");
+            }
+        }
     }
 
     public boolean prepareRopeAttachment(RapierRopeHandle rope, ServerSubLevel body) {

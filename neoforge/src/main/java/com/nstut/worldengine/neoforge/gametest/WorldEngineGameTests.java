@@ -3,6 +3,7 @@ package com.nstut.worldengine.neoforge.gametest;
 import com.nstut.worldengine.physics.WorldEngineBodyIndex;
 import com.nstut.worldengine.physics.rapier.Rapier3D;
 import com.nstut.worldengine.physics.rapier.RapierPhysicsPipeline;
+import com.nstut.worldengine.physics.rapier.RapierWorldSpatialIndex;
 import com.nstut.worldengine.physics.rapier.rope.RapierRopeHandle;
 import dev.ryanhcode.sable.api.physics.object.rope.RopeHandle;
 import dev.ryanhcode.sable.api.physics.object.rope.RopePhysicsObject;
@@ -33,6 +34,69 @@ public final class WorldEngineGameTests {
     private WorldEngineGameTests() { }
 
     @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", batch = "rope-lifetime", timeoutTicks = 280)
+    public static void ropeSceneOutlivesItsRemovedTarget(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos block = helper.absolutePos(new BlockPos(2, 2, 2));
+        level.setBlock(block.below(), Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(block, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+        ServerSubLevel body = SubLevelAssemblyHelper.assembleBlocks(level, block, List.of(block),
+                new BoundingBox3i(block.getX(), block.getY(), block.getZ(), block.getX(), block.getY(), block.getZ()));
+        RapierPhysicsPipeline pipeline = (RapierPhysicsPipeline) SubLevelPhysicsSystem.require(level).getPipeline();
+        List<Vector3d> points = List.of(new Vector3d(block.getX(), block.getY(), block.getZ()),
+                new Vector3d(block.getX(), block.getY() + 1, block.getZ()),
+                new Vector3d(block.getX(), block.getY() + 2, block.getZ()));
+        RapierRopeHandle rope = RapierRopeHandle.create(pipeline, Rapier3D.getSceneHandle(level), 0.1, points);
+        rope.setAttachment(RopeHandle.AttachmentPoint.START, new Vector3d(), body);
+        pipeline.remove(body);
+        // Empty body regions expire after 200 ticks; a live rope must prevent that.
+        helper.startSequence().thenIdle(220).thenExecute(() -> {
+            rope.readPose(points);
+            for (Vector3d point : points) {
+                if (!Double.isFinite(point.x) || !Double.isFinite(point.y) || !Double.isFinite(point.z)) {
+                    helper.fail("Rope scene did not survive target removal");
+                }
+            }
+            rope.remove();
+        }).thenSucceed();
+    }
+
+    @PrefixGameTestTemplate(false)
+    @GameTest(template = "physicstest.gravity", timeoutTicks = 120)
+    public static void ropesSurviveMergingTwoAttachedBodyScenes(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        RapierPhysicsPipeline pipeline = (RapierPhysicsPipeline) SubLevelPhysicsSystem.require(level).getPipeline();
+        ServerSubLevel[] bodies = new ServerSubLevel[2];
+        RapierRopeHandle[] ropes = new RapierRopeHandle[2];
+        List<List<Vector3d>> poses = new java.util.ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            BlockPos block = helper.absolutePos(new BlockPos(2 + i * (int) (RapierWorldSpatialIndex.REGION_SIZE * 2), 2, 2));
+            level.setBlock(block.below(), Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(block, Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+            bodies[i] = SubLevelAssemblyHelper.assembleBlocks(level, block, List.of(block),
+                    new BoundingBox3i(block.getX(), block.getY(), block.getZ(), block.getX(), block.getY(), block.getZ()));
+            List<Vector3d> points = List.of(new Vector3d(block.getX(), block.getY(), block.getZ()),
+                    new Vector3d(block.getX(), block.getY() + 1, block.getZ()),
+                    new Vector3d(block.getX(), block.getY() + 2, block.getZ()));
+            poses.add(points);
+            ropes[i] = RapierRopeHandle.create(pipeline, Rapier3D.getSceneHandle(level), 0.1, points);
+            ropes[i].setAttachment(RopeHandle.AttachmentPoint.START, new Vector3d(), bodies[i]);
+        }
+        if (ropes[0].sceneHandle() == ropes[1].sceneHandle()) helper.fail("Fixture did not create two rope scenes");
+        ropes[0].setAttachment(RopeHandle.AttachmentPoint.END, new Vector3d(), bodies[1]);
+        if (ropes[0].sceneHandle() != ropes[1].sceneHandle()
+                || pipeline.prepareConstraintScene(bodies[0], bodies[1]) != ropes[0].sceneHandle()) {
+            helper.fail("Connected rope scenes were not coalesced");
+        }
+        for (int i = 0; i < 2; i++) {
+            ropes[i].readPose(poses.get(i));
+            ropes[i].setFirstSegmentLength(0.5);
+            ropes[i].remove();
+        }
+        helper.succeed();
+    }
+
+    @PrefixGameTestTemplate(false)
     @GameTest(template = "physicstest.gravity", timeoutTicks = 100)
     public static void ropeAttachmentWaitsForTargetRegistration(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -51,12 +115,12 @@ public final class WorldEngineGameTests {
         rope.setAttachment(RopeHandle.AttachmentPoint.START, new Vector3d(), body);
         if (rope.sceneHandle() != auxiliary) helper.fail("Unregistered target was materialized prematurely");
         pipeline.add(body, body.logicalPose());
-        helper.startSequence().thenIdle(2).thenExecute(() -> {
-            if (rope.sceneHandle() == auxiliary || rope.sceneHandle() != pipeline.prepareConstraintScene(body, null)) {
-                helper.fail("Deferred attachment did not move into the newly registered target's scene");
-            }
-            rope.remove();
-        }).thenSucceed();
+        if (!rope.retryAttachments() || rope.sceneHandle() == auxiliary
+                || rope.sceneHandle() != pipeline.prepareConstraintScene(body, null)) {
+            helper.fail("Deferred attachment did not move into the newly registered target's scene");
+        }
+        rope.remove();
+        helper.succeed();
     }
 
     @PrefixGameTestTemplate(false)
@@ -128,7 +192,7 @@ public final class WorldEngineGameTests {
                     || !Rapier3D.isConstraintValid(originalScene, constraint)) {
                 helper.fail("Rope attachment lost an existing body constraint");
             }
-            // Exercise reversed ordering with the auxiliary scene as body B.
+            // Exercise reversed ordering with the rope-pinned body as body B.
             if (pipeline.prepareConstraintScene(bodies[1], bodies[0]) != originalScene) {
                 helper.fail("Constraint preparation moved a rope-pinned body out of its scene");
             }

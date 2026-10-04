@@ -649,16 +649,19 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_setRop
 fn move_rope(source: &PhysicsScene, destination: &PhysicsScene, id: usize) -> Option<usize> {
     let mut source_data = source.sable_data.write().unwrap();
     let rope = source_data.rope_map.ropes.get(&id)?;
+    let mut source_sim = source.sim_data.write().unwrap();
     if [&rope.start_attachment, &rope.end_attachment]
         .iter()
         .any(|a| {
-            a.as_ref()
-                .is_some_and(|a| a.sub_level_id.is_some() && a.joint.is_some())
+            a.as_ref().is_some_and(|a| {
+                a.sub_level_id.is_some()
+                    && a.joint
+                        .is_some_and(|joint| source_sim.impulse_joint_set.contains(joint))
+            })
         })
     {
         return None;
     }
-    let mut source_sim = source.sim_data.write().unwrap();
     if rope
         .points
         .iter()

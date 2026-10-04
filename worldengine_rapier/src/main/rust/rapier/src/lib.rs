@@ -1001,8 +1001,7 @@ pub extern "system" fn Java_com_nstut_worldengine_physics_rapier_Rapier3D_mergeS
     let mut destination_data = destination.sable_data.write().unwrap();
     let mut destination_sim = destination.sim_data.write().unwrap();
 
-    if !source_data.rope_map.is_empty()
-        || source_data
+    if source_data
             .level_colliders
             .values()
             .any(|collider| collider.static_mount.is_some())

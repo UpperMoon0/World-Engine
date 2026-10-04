@@ -186,7 +186,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
     }
 
     void retainRegionIfEmpty(RapierPhysicsRegion region) {
-        if (region == this.defaultRegion || !region.getActiveSubLevels().isEmpty()) return;
+        if (region == this.defaultRegion || !region.getActiveSubLevels().isEmpty() || this.pipeline.hasRopes(region)) return;
         long expiry = this.currentTick + EMPTY_REGION_RETENTION_TICKS;
         if (this.emptyRegionExpiry.putIfAbsent(region, expiry) == null) {
             this.emptyRegionQueue.add(new RegionExpiry(expiry, region));
@@ -377,7 +377,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
             Long currentExpiry = this.emptyRegionExpiry.get(entry.region());
             if (currentExpiry != null && currentExpiry == entry.expiryTick()) {
                 this.emptyRegionExpiry.remove(entry.region());
-                this.disposeRegion(entry.region());
+                if (!this.pipeline.hasRopes(entry.region())) this.disposeRegion(entry.region());
             }
         }
     }
@@ -393,6 +393,7 @@ public class RapierWorldSpatialIndex implements WorldSpatialIndex {
         if (source == destination) return true;
         if (source == this.defaultRegion || destination == this.defaultRegion) return false;
         if (!Rapier3D.mergeScenes(source.getSceneHandle(), destination.getSceneHandle())) return false;
+        this.pipeline.moveRopes(source, destination);
 
         for (ServerSubLevel subLevel : new ArrayList<>(source.getActiveSubLevels())) {
             source.removeSubLevel(subLevel);

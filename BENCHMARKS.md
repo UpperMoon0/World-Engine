@@ -53,6 +53,12 @@ loader tested. They are not a blanket performance claim.
 
 ### Dimension persistence comparison
 
+The [0.1.3 Windows report and raw evidence](docs/benchmarks/2026-10-14-59cf28e/README.md)
+record 30 selected measured launches and four restart checks on source `59cf28e`.
+Idle tick latency and process CPU improved at all three counts; whole-world
+save wall time regressed. The report retains those regressions, tails, trial
+spread and the excluded pre-measurement port collision/replacement pair.
+
 `python tools/benchmark_persistence.py` compares stock Sable 2.0.5 with World
 Engine in five alternating fresh-JVM pairs for 1, 16 and 64 extra datapack
 dimensions (in addition to Minecraft's three dimensions). The extra dimensions

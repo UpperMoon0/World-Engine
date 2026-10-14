@@ -17,6 +17,15 @@ It keeps Sable's configured physics substeps and solver settings. Its optimizati
 
 The full technical migration is documented in [MIGRATION.md](MIGRATION.md).
 
+## Empty-dimension benchmark: 0.1.3 vs stock Sable
+
+Five alternating pairs at each of 1, 16 and 64 extra empty dimensions reduced
+median idle-tick latency 54–79% and process CPU 30–45% on the measured Windows
+NeoForge server. Whole-world save latency was 16–20% higher, with a worse
+64-dimension save p95. These results compare the complete addon with stock Sable;
+they do not establish uniformly faster saves or isolate this change from earlier
+physics optimizations. See the [full report and raw evidence](docs/benchmarks/2026-10-14-59cf28e/README.md).
+
 ## Benchmark: 0.1.1 vs stock Sable
 
 Five paired trials per workload on Minecraft 1.21.1 NeoForge used 50 fresh server

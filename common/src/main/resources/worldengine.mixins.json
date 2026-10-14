@@ -4,6 +4,9 @@
   "package": "com.nstut.worldengine.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "SubLevelHoldingChunkMapMixin",
+    "SubLevelStorageMixin",
+    "SubLevelStorageFileMixin",
     "LevelRainingCacheMixin",
     "LevelTimeAccessCacheMixin",
     "LevelTimeStateMixin",

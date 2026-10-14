@@ -51,6 +51,38 @@ loader tested. They are not a blanket performance claim.
 
 ## Run
 
+### Dimension persistence comparison
+
+`python tools/benchmark_persistence.py` compares stock Sable 2.0.5 with World
+Engine in five alternating fresh-JVM pairs for 1, 16 and 64 extra datapack
+dimensions (in addition to Minecraft's three dimensions). The extra dimensions
+must have zero loaded chunks, bodies and force-load tickets. Each process warms
+up for 100 ticks and measures 300 ticks plus 30 explicit production world saves.
+Save logging is disabled identically in both variants. The accelerated ten-tick
+save interval measures save cost; it is not Minecraft's normal autosave cadence.
+
+Idle tick wall time, thread CPU and allocation exclude the explicit save calls;
+save metrics time `MinecraftServer.saveAllChunks` separately. Process CPU covers
+both, including worker/GC work. Summaries compare trial medians independently
+for each dimension count; thread CPU uses full-window means to retain coarse
+Windows counters. Results include vanilla world/chunk saving, not just Sable.
+
+The first pair also saves/reloads a holding structure with zero active bodies,
+then restarts each server twice: force-loaded structures must
+return, then deleting the last structure and removing its ticket must survive
+another restart. Every measurement process checks storage reopen/deletion; addon
+processes also check that clean flushes skip force and failed writes/flushes retain
+pending state. Inputs are compiled and hashed before measurement and checked
+before/after every launch. Smoke/dirty/partial runs are not publication eligible.
+Evidence is under `build/persistence-comparison/`. The Benchmark harness workflow
+runs a single-pair PR validation and provides a full `persistence` dispatch.
+
+This fixture measures empty-dimension overhead. Active/sleeping structures still
+use Sable's serialization path; it does not establish dirty tracking for every
+body, arbitrary modpack performance, or Fabric runtime persistence.
+
+### Physics comparison
+
 Use Java 21 and Python 3.11+, on an otherwise idle machine:
 
 The comparison uses the checked-in release native bundle, with its hash in the

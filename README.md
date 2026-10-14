@@ -13,6 +13,7 @@ It keeps Sable's configured physics substeps and solver settings. Its optimizati
 - Incremental voxel geometry and terrain streaming avoid rebuilding unchanged collision data.
 - Network level-of-detail and client extrapolation reduce unnecessary synchronization work.
 - Sable's configured physics substeps remain in effect.
+- Empty dimensions skip sublevel holding-map processing and saves when no lifecycle work or storage writes are pending. Clean cached files skip repeated flushes, and empty force-load ticket data is not dirtied solely by a save.
 
 The full technical migration is documented in [MIGRATION.md](MIGRATION.md).
 

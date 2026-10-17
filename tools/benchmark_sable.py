@@ -59,9 +59,9 @@ def validate(sample, engine, scenario, run_id, ticks):
 
 def fingerprint(root):
     paths = set()
-    for pattern in ("*.gradle", "*.properties", "buildSrc/**", "tools/*.py",
-                    "benchmark/src/**", "*/src/main/**", "*/build/classes/**",
-                    "*/build/resources/main/**", "*/build/libs/*.jar"):
+    for pattern in ("*.gradle", "*.properties", "buildSrc/**/*", "tools/*.py",
+                    "benchmark/src/**/*", "*/src/main/**/*", "*/build/classes/**/*",
+                    "*/build/resources/main/**/*", "*/build/libs/*.jar"):
         paths.update(p for p in root.glob(pattern) if p.is_file() and "__pycache__" not in p.parts
                      and not (p.is_relative_to(root / "buildSrc" / "build")
                               or p.is_relative_to(root / "buildSrc" / ".gradle")

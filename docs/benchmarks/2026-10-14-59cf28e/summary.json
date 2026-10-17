@@ -1,0 +1,559 @@
+{
+  "schema": 1,
+  "host": "Windows-10-10.0.19045-SP0",
+  "runId": "20261014-223148",
+  "pass_": true,
+  "nativeMode": "checked-in-release-bundle",
+  "trials": 5,
+  "sourceHead": "59cf28ed0ab029df03a0854533e7ac187960e45f",
+  "sourceDirty": false,
+  "summary": [
+    {
+      "extraDimensions": 1,
+      "engine": "sable",
+      "trials": 5,
+      "ticks.wallMs": {
+        "median": 1.1985999999999999,
+        "min": 0.6885,
+        "max": 1.41525,
+        "q1": 0.87915,
+        "q3": 1.2504
+      },
+      "ticks.cpuMs": {
+        "median": 0.625,
+        "min": 0.052083333333333336,
+        "max": 0.7291666666666666,
+        "q1": 0.10416666666666667,
+        "q3": 0.7291666666666666
+      },
+      "ticks.allocatedBytes": {
+        "median": 27280.0,
+        "min": 27280.0,
+        "max": 27280.0,
+        "q1": 27280.0,
+        "q3": 27280.0
+      },
+      "ticks.p95Ms": {
+        "median": 2.6916,
+        "min": 1.922,
+        "max": 3.0712,
+        "q1": 2.6105,
+        "q3": 2.7599
+      },
+      "ticks.maxMs": {
+        "median": 20.6578,
+        "min": 5.4214,
+        "max": 46.8441,
+        "q1": 13.1596,
+        "q3": 36.9398
+      },
+      "saves.wallMs": {
+        "median": 12.81555,
+        "min": 6.941800000000001,
+        "max": 15.139,
+        "q1": 10.716899999999999,
+        "q3": 13.11695
+      },
+      "saves.cpuMs": {
+        "median": 4.6875,
+        "min": 1.5625,
+        "max": 12.5,
+        "q1": 4.166666666666667,
+        "q3": 9.375
+      },
+      "saves.allocatedBytes": {
+        "median": 129360.0,
+        "min": 124168.0,
+        "max": 130384.0,
+        "q1": 129296.0,
+        "q3": 129568.0
+      },
+      "saves.p95Ms": {
+        "median": 21.5844,
+        "min": 14.941,
+        "max": 23.1497,
+        "q1": 20.5827,
+        "q3": 21.6321
+      },
+      "saves.maxMs": {
+        "median": 23.411,
+        "min": 20.918,
+        "max": 31.1563,
+        "q1": 22.2544,
+        "q3": 23.8662
+      },
+      "processCpuMsPerTick": {
+        "median": 4.739583333333333,
+        "min": 2.5,
+        "max": 8.020833333333334,
+        "q1": 3.75,
+        "q3": 5.260416666666667
+      }
+    },
+    {
+      "extraDimensions": 1,
+      "engine": "worldengine",
+      "trials": 5,
+      "ticks.wallMs": {
+        "median": 0.55025,
+        "min": 0.40885,
+        "max": 0.8022,
+        "q1": 0.5279499999999999,
+        "q3": 0.7066
+      },
+      "ticks.cpuMs": {
+        "median": 0.46875,
+        "min": 0.0,
+        "max": 0.5729166666666666,
+        "q1": 0.4166666666666667,
+        "q3": 0.5208333333333334
+      },
+      "ticks.allocatedBytes": {
+        "median": 25296.0,
+        "min": 25296.0,
+        "max": 25296.0,
+        "q1": 25296.0,
+        "q3": 25296.0
+      },
+      "ticks.p95Ms": {
+        "median": 2.0828,
+        "min": 1.7014,
+        "max": 19.0157,
+        "q1": 1.9693,
+        "q3": 5.0368
+      },
+      "ticks.maxMs": {
+        "median": 31.1185,
+        "min": 5.1895,
+        "max": 59.2558,
+        "q1": 6.7484,
+        "q3": 47.1731
+      },
+      "saves.wallMs": {
+        "median": 14.8909,
+        "min": 12.58155,
+        "max": 16.71625,
+        "q1": 13.68375,
+        "q3": 15.89855
+      },
+      "saves.cpuMs": {
+        "median": 6.770833333333333,
+        "min": 2.6041666666666665,
+        "max": 8.854166666666666,
+        "q1": 4.166666666666667,
+        "q3": 8.333333333333334
+      },
+      "saves.allocatedBytes": {
+        "median": 119888.0,
+        "min": 119804.0,
+        "max": 119936.0,
+        "q1": 119888.0,
+        "q3": 119920.0
+      },
+      "saves.p95Ms": {
+        "median": 29.0891,
+        "min": 20.6251,
+        "max": 144.686,
+        "q1": 22.0193,
+        "q3": 56.2954
+      },
+      "saves.maxMs": {
+        "median": 44.949,
+        "min": 21.6421,
+        "max": 209.7071,
+        "q1": 22.0406,
+        "q3": 134.9388
+      },
+      "processCpuMsPerTick": {
+        "median": 3.3333333333333335,
+        "min": 2.2395833333333335,
+        "max": 4.375,
+        "q1": 2.65625,
+        "q3": 4.166666666666667
+      }
+    },
+    {
+      "extraDimensions": 16,
+      "engine": "sable",
+      "trials": 5,
+      "ticks.wallMs": {
+        "median": 1.76,
+        "min": 1.3115999999999999,
+        "max": 23.54665,
+        "q1": 1.7043,
+        "q3": 1.8418
+      },
+      "ticks.cpuMs": {
+        "median": 1.1458333333333333,
+        "min": 0.5208333333333334,
+        "max": 1.5625,
+        "q1": 1.0416666666666667,
+        "q3": 1.3541666666666667
+      },
+      "ticks.allocatedBytes": {
+        "median": 103320.0,
+        "min": 102560.0,
+        "max": 103320.0,
+        "q1": 102560.0,
+        "q3": 103320.0
+      },
+      "ticks.p95Ms": {
+        "median": 13.1973,
+        "min": 3.4947,
+        "max": 206.4343,
+        "q1": 4.4974,
+        "q3": 37.8801
+      },
+      "ticks.maxMs": {
+        "median": 60.9306,
+        "min": 7.5041,
+        "max": 1460.9139,
+        "q1": 31.0918,
+        "q3": 194.4136
+      },
+      "saves.wallMs": {
+        "median": 13.3393,
+        "min": 9.32395,
+        "max": 17.4561,
+        "q1": 10.29215,
+        "q3": 17.012900000000002
+      },
+      "saves.cpuMs": {
+        "median": 7.8125,
+        "min": 3.125,
+        "max": 13.541666666666666,
+        "q1": 6.770833333333333,
+        "q3": 12.5
+      },
+      "saves.allocatedBytes": {
+        "median": 324024.0,
+        "min": 322136.0,
+        "max": 326296.0,
+        "q1": 322304.0,
+        "q3": 326264.0
+      },
+      "saves.p95Ms": {
+        "median": 27.7619,
+        "min": 22.1337,
+        "max": 32.0019,
+        "q1": 22.1709,
+        "q3": 30.8024
+      },
+      "saves.maxMs": {
+        "median": 35.4264,
+        "min": 22.2997,
+        "max": 90.7777,
+        "q1": 28.6526,
+        "q3": 54.4404
+      },
+      "processCpuMsPerTick": {
+        "median": 15.46875,
+        "min": 11.822916666666666,
+        "max": 17.864583333333332,
+        "q1": 12.65625,
+        "q3": 16.979166666666668
+      }
+    },
+    {
+      "extraDimensions": 16,
+      "engine": "worldengine",
+      "trials": 5,
+      "ticks.wallMs": {
+        "median": 0.78425,
+        "min": 0.52215,
+        "max": 0.89935,
+        "q1": 0.74725,
+        "q3": 0.86075
+      },
+      "ticks.cpuMs": {
+        "median": 0.46875,
+        "min": 0.0,
+        "max": 1.3541666666666667,
+        "q1": 0.3125,
+        "q3": 1.3020833333333333
+      },
+      "ticks.allocatedBytes": {
+        "median": 89336.0,
+        "min": 89336.0,
+        "max": 92692.0,
+        "q1": 89336.0,
+        "q3": 92376.0
+      },
+      "ticks.p95Ms": {
+        "median": 2.2137,
+        "min": 0.9396,
+        "max": 2.7554,
+        "q1": 2.0833,
+        "q3": 2.2329
+      },
+      "ticks.maxMs": {
+        "median": 11.0542,
+        "min": 4.1467,
+        "max": 17.7977,
+        "q1": 6.0458,
+        "q3": 17.7007
+      },
+      "saves.wallMs": {
+        "median": 15.4194,
+        "min": 7.80985,
+        "max": 18.2474,
+        "q1": 15.239799999999999,
+        "q3": 16.23655
+      },
+      "saves.cpuMs": {
+        "median": 8.333333333333334,
+        "min": 6.770833333333333,
+        "max": 10.9375,
+        "q1": 8.333333333333334,
+        "q3": 9.895833333333334
+      },
+      "saves.allocatedBytes": {
+        "median": 280288.0,
+        "min": 274432.0,
+        "max": 280348.0,
+        "q1": 274432.0,
+        "q3": 280320.0
+      },
+      "saves.p95Ms": {
+        "median": 26.9101,
+        "min": 21.9696,
+        "max": 29.8103,
+        "q1": 24.1131,
+        "q3": 29.4603
+      },
+      "saves.maxMs": {
+        "median": 32.3463,
+        "min": 22.702,
+        "max": 45.0419,
+        "q1": 28.0221,
+        "q3": 39.7344
+      },
+      "processCpuMsPerTick": {
+        "median": 10.260416666666666,
+        "min": 7.864583333333333,
+        "max": 14.427083333333334,
+        "q1": 8.697916666666666,
+        "q3": 11.197916666666666
+      }
+    },
+    {
+      "extraDimensions": 64,
+      "engine": "sable",
+      "trials": 5,
+      "ticks.wallMs": {
+        "median": 4.145849999999999,
+        "min": 2.81825,
+        "max": 5.5,
+        "q1": 2.8377,
+        "q3": 4.5372
+      },
+      "ticks.cpuMs": {
+        "median": 2.1875,
+        "min": 1.5625,
+        "max": 2.6041666666666665,
+        "q1": 2.1875,
+        "q3": 2.2916666666666665
+      },
+      "ticks.allocatedBytes": {
+        "median": 199760.0,
+        "min": 195992.0,
+        "max": 204784.0,
+        "q1": 196432.0,
+        "q3": 199796.0
+      },
+      "ticks.p95Ms": {
+        "median": 58.6363,
+        "min": 7.3327,
+        "max": 88.6819,
+        "q1": 9.0636,
+        "q3": 59.7756
+      },
+      "ticks.maxMs": {
+        "median": 209.158,
+        "min": 20.855,
+        "max": 337.439,
+        "q1": 28.7542,
+        "q3": 312.0981
+      },
+      "saves.wallMs": {
+        "median": 15.70675,
+        "min": 8.883,
+        "max": 22.3639,
+        "q1": 9.744900000000001,
+        "q3": 19.779400000000003
+      },
+      "saves.cpuMs": {
+        "median": 7.8125,
+        "min": 5.729166666666667,
+        "max": 15.104166666666666,
+        "q1": 7.8125,
+        "q3": 9.895833333333334
+      },
+      "saves.allocatedBytes": {
+        "median": 924528.0,
+        "min": 907528.0,
+        "max": 935228.0,
+        "q1": 919656.0,
+        "q3": 933200.0
+      },
+      "saves.p95Ms": {
+        "median": 30.5447,
+        "min": 23.924,
+        "max": 58.4943,
+        "q1": 29.6913,
+        "q3": 31.3082
+      },
+      "saves.maxMs": {
+        "median": 32.6769,
+        "min": 24.3073,
+        "max": 70.7346,
+        "q1": 30.0982,
+        "q3": 54.3474
+      },
+      "processCpuMsPerTick": {
+        "median": 35.989583333333336,
+        "min": 24.479166666666668,
+        "max": 39.166666666666664,
+        "q1": 30.0,
+        "q3": 36.979166666666664
+      }
+    },
+    {
+      "extraDimensions": 64,
+      "engine": "worldengine",
+      "trials": 5,
+      "ticks.wallMs": {
+        "median": 0.8651500000000001,
+        "min": 0.78345,
+        "max": 1.5252,
+        "q1": 0.8311,
+        "q3": 1.07175
+      },
+      "ticks.cpuMs": {
+        "median": 0.78125,
+        "min": 0.625,
+        "max": 1.3020833333333333,
+        "q1": 0.6770833333333334,
+        "q3": 0.9375
+      },
+      "ticks.allocatedBytes": {
+        "median": 186584.0,
+        "min": 177984.0,
+        "max": 193016.0,
+        "q1": 180208.0,
+        "q3": 190336.0
+      },
+      "ticks.p95Ms": {
+        "median": 7.7398,
+        "min": 2.5514,
+        "max": 11.7489,
+        "q1": 2.6035,
+        "q3": 10.7065
+      },
+      "ticks.maxMs": {
+        "median": 35.098,
+        "min": 5.0583,
+        "max": 120.249,
+        "q1": 11.3303,
+        "q3": 41.4137
+      },
+      "saves.wallMs": {
+        "median": 18.886400000000002,
+        "min": 16.41285,
+        "max": 29.451999999999998,
+        "q1": 17.1111,
+        "q3": 20.2339
+      },
+      "saves.cpuMs": {
+        "median": 7.8125,
+        "min": 3.6458333333333335,
+        "max": 11.458333333333334,
+        "q1": 4.6875,
+        "q3": 8.854166666666666
+      },
+      "saves.allocatedBytes": {
+        "median": 768056.0,
+        "min": 764516.0,
+        "max": 777856.0,
+        "q1": 767076.0,
+        "q3": 771344.0
+      },
+      "saves.p95Ms": {
+        "median": 112.7185,
+        "min": 26.9922,
+        "max": 320.7964,
+        "q1": 28.4037,
+        "q3": 226.9058
+      },
+      "saves.maxMs": {
+        "median": 191.3203,
+        "min": 31.3426,
+        "max": 368.5134,
+        "q1": 35.645,
+        "q3": 250.56
+      },
+      "processCpuMsPerTick": {
+        "median": 19.84375,
+        "min": 16.927083333333332,
+        "max": 20.9375,
+        "q1": 19.583333333333332,
+        "q3": 19.84375
+      }
+    }
+  ],
+  "publicationEligible": true,
+  "excludedAttempts": [
+    {
+      "reason": "Port collision before measurement; entire final pair retried with identical frozen inputs",
+      "failedLaunch": "dimensions64-4-worldengine",
+      "discardedBaseline": "dimensions64-4-sable",
+      "evidence": "failed-port-attempt.json"
+    }
+  ],
+  "measurementCount": 30,
+  "restartCount": 4,
+  "evidenceArchive": "evidence.zip",
+  "archivedFiles": {
+    "result.json": "ff17a1d16ed4aea08b943749516c53175f935735473548aee39b75e259ff6f63",
+    "failed-port-attempt.json": "4df84559820bd784841d19fce7c46133235b3c05fd4597c04fbb4fe1d2553a5a",
+    "logs/dimensions1-0-sable-deleted-launch.log.gz": "606ca9b5d485f49a591c8d5dd5a024eb42945729368aeaa6dcf0da331fd30bad",
+    "logs/dimensions1-0-sable-measure-launch.log.gz": "58539986cf86e0b4155ccc3dc4dbaad89a9e4f04ff7a965c41d383744cba87fd",
+    "logs/dimensions1-0-sable-restored-launch.log.gz": "94954163253c9d30cd0a6e1affcc039a3d582ddaf6777a9f34dba8b00c516035",
+    "logs/dimensions1-0-worldengine-deleted-launch.log.gz": "f876a8439577aaefddf39d0db6f6b3fb3c6ae245340e5612834dd582bc408b4f",
+    "logs/dimensions1-0-worldengine-measure-launch.log.gz": "7a406789dbab7f1a35593586734ce74a8bd13818e8238fdc8be40f66375eef54",
+    "logs/dimensions1-0-worldengine-restored-launch.log.gz": "8f2e52b129b4ddfc72c512db539ef18d1be7d1b9bdb5dcf6db3ba5501c53fcc2",
+    "logs/dimensions1-1-sable-measure-launch.log.gz": "449a56b45a4362ac29d51cf9b65ccd0379596ac2f5c7bddbc871d7083227fe08",
+    "logs/dimensions1-1-worldengine-measure-launch.log.gz": "dc1bdcb127fc00ccebca5ce557c39a26402116b44e69037a19277121b27e030a",
+    "logs/dimensions1-2-sable-measure-launch.log.gz": "81463a65ca709c3b093ebe2afa9b385f4a404f828aef3371bb69c2c6da899669",
+    "logs/dimensions1-2-worldengine-measure-launch.log.gz": "56e3965c51070faecba7b76e0ee29c958b9b3d440784926a6f59b9ac19c8aafc",
+    "logs/dimensions1-3-sable-measure-launch.log.gz": "ee1c11e684cda449c1bc9300954318c8357e7ce9cee9fa65a454dee629e3f1c0",
+    "logs/dimensions1-3-worldengine-measure-launch.log.gz": "186c82dcca58220a9cafe8b3452f88f295e8209e3ebfca763effe46314b49026",
+    "logs/dimensions1-4-sable-measure-launch.log.gz": "59a8a5ebac6b51e8dab1cf89220b443d75667881346a398bc083d9f066f6c461",
+    "logs/dimensions1-4-worldengine-measure-launch.log.gz": "4ec7253c97512c3453fadf584e3fb1f4b685520a8969b6a362a260f9bb136edb",
+    "logs/dimensions16-0-sable-measure-launch.log.gz": "5dfce32ec2ef1888badd8dd646ba1f6e893dbb39051efa53ecd3ed4d4fa48ece",
+    "logs/dimensions16-0-worldengine-measure-launch.log.gz": "1c1513ed485ecc408252997ce2477c022cbe195af9e12feb3d727eb5d2e6db81",
+    "logs/dimensions16-1-sable-measure-launch.log.gz": "26078b5f0b880e01319ea69c4feb2e10b1c942c0060f570362092867fbee936c",
+    "logs/dimensions16-1-worldengine-measure-launch.log.gz": "f3870ec85d4a377fc7d0a40b7e2b051c8d5129974aa5bf18281407422b12145e",
+    "logs/dimensions16-2-sable-measure-launch.log.gz": "55e0731ea9e078fd283caa6b555ff9252ad3e4874b0e3a81a9f6845e102e813f",
+    "logs/dimensions16-2-worldengine-measure-launch.log.gz": "ae049ca1cb54ffa35c8f9c6fe8826e2e8c11fc944c7445838cbf4f8342071b20",
+    "logs/dimensions16-3-sable-measure-launch.log.gz": "cedf7409d3aa16a0f8bba1940066549fb235446d0f49b1400ec70141ec7fb13e",
+    "logs/dimensions16-3-worldengine-measure-launch.log.gz": "b3ef03cb184cc76f715a8c60003d2b0c108729620d0d3effaa141419131d3a9c",
+    "logs/dimensions16-4-sable-measure-launch.log.gz": "529598c8244cdb4639971a76a331aaa9ccd302d1a0cf7179ddbcaf58de74d530",
+    "logs/dimensions16-4-worldengine-measure-launch.log.gz": "d26b036712347dc89264f94c5ae43baf30db1b2b3792e483d0502ef9f136064e",
+    "logs/dimensions64-0-sable-measure-launch.log.gz": "e356fc0e056e2334ca9f803fb54a969babacb45c8079e16dddc473c1b3129846",
+    "logs/dimensions64-0-worldengine-measure-launch.log.gz": "539a549b73bec5a7967117ba04972689b3f1ccd9c69d40cd40ca5e517971c7e8",
+    "logs/dimensions64-1-sable-measure-launch.log.gz": "fae373bd4a4271b813efc1f30241842730a7d2bced8fcd81416c881182e395d9",
+    "logs/dimensions64-1-worldengine-measure-launch.log.gz": "07621088045c9768c1ddb0d744b01c28afa89904f3888ffd3dd0ba5de1706a49",
+    "logs/dimensions64-2-sable-measure-launch.log.gz": "97d840b6ac1e344135b49ad7a83c0e9d344e2c1e055a9b0e8a7a57890d0131bb",
+    "logs/dimensions64-2-worldengine-measure-launch.log.gz": "bf6646126a1bd1affe765f1f41114086c1ab922ae904895720452acc70809ab9",
+    "logs/dimensions64-3-sable-measure-launch.log.gz": "73cf95e6c32f716d4dbd220ef3a1165cbade486018a06b21b71ff7670745136a",
+    "logs/dimensions64-3-worldengine-measure-launch.log.gz": "b4a19831ab54c225789faf1f3edfca9f6ebdd9ac40b60bee68632def8a00b5a0",
+    "logs/dimensions64-4-sable-measure-launch.log.gz": "6dccd29a4a3cbde8f1e5998d9cedf236c2bf627fe1d9c84444aabe46af4dcc6e",
+    "logs/dimensions64-4-sable-retry1-measure-launch.log.gz": "d6d6bae84ab856cafbf62e6d267ece2590a952d227a1acbd25afc94289b963f4",
+    "logs/dimensions64-4-worldengine-measure-launch.log.gz": "a17b3d149f0fc7f8f0dac9259e44ada94ea306085a32b2395e866851d6b9df47",
+    "logs/dimensions64-4-worldengine-retry1-measure-launch.log.gz": "1d1412a3174d5f6f0ee9fc2f3e9ddbda0b6cfbfdd4e9e420a1adc3a3024096d9",
+    "logs/persistence-baseline-tests.log.gz": "b5df77cd4d84f91548ddb913fa8b1462e9623e2b534e128347b417b6aa727399",
+    "logs/persistence-tests.log.gz": "50eee0a665773f98a0f8a5a0186f50a9fdf495e322cead0b6a75bca4c024bdc5"
+  },
+  "evidenceArchiveSha256": "f68d64ea3182d285ed55c2a53c16c3b580c388b76d57972dda9726b303774a24"
+}

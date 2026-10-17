@@ -1,6 +1,6 @@
 # Empty-dimension persistence: World Engine 0.1.3 vs stock Sable
 
-Source `59cf28ed0ab029df03a0854533e7ac187960e45f`, measured on 2026-10-14. All 30 selected measured launches and four restart launches passed. One final launch had a port collision before measurement; the entire final pair was rerun in fresh worlds with identical frozen inputs. The rejected attempt and discarded baseline are retained in failed-port-attempt.json. The complete comparison is publication eligible under the documented protocol.
+Source `59cf28ed0ab029df03a0854533e7ac187960e45f`, measured on 2026-10-14. All 30 selected measured launches and four restart launches passed. One final launch had a port collision before measurement; the entire final pair was rerun in fresh worlds with identical frozen inputs. The rejected attempt and discarded baseline are retained in `failed-port-attempt.json` inside the evidence archive. The complete comparison is publication eligible under the documented protocol.
 
 These measurements compare the complete World Engine addon with stock Sable 2.0.5. They do not isolate this persistence change from World Engine's existing physics optimizations. Idle tick improvements and mixed save results must be reported separately.
 
@@ -52,13 +52,29 @@ Q1-Q3 of the five trial medians; these are not confidence intervals.
 
 ## Limits
 
-Whole-world saves include vanilla world/chunk serialization and filesystem I/O. Their measured wall-time changes are mixed; this report does not claim uniformly faster saves or an overall performance win. All measurements, including slower outcomes and tails, remain in result.json.
+Whole-world saves include vanilla world/chunk serialization and filesystem I/O. Their measured wall-time changes are mixed; this report does not claim uniformly faster saves or an overall performance win. All measurements, including slower outcomes and tails, remain in `result.json` inside the evidence archive.
 
 Previously used dimensions may still have Sable dirty holding chunks. This change conservatively preserves that state rather than clearing it through APIs that swallow write failures. Active/sleeping structures retain Sable serialization; this is not general dirty tracking for body data. Fabric builds, but Fabric runtime persistence, client FPS, retained RAM and arbitrary modpacks were not benchmarked.
 
 ## Evidence
 
-- [Complete raw samples and summary](result.json)
+- [Readable summary and archive SHA-256 manifest](summary.json)
+- [Complete original raw samples, rejected attempt and 38 compressed logs](evidence.zip)
 - [Frozen input SHA-256 manifest](inputs.json)
 - [Empty ticket file counts](empty-ticket-files.json)
-- [Compressed launch and baseline-control logs](logs/)
+
+The archive replaces 40 individually tracked generated files without changing a
+byte of their contents. In particular, the failed-attempt snapshot repeats 28
+selected measurements and all four restart records; retaining that original
+snapshot in compressed form keeps the audit trail without a second 58,555-line
+JSON diff. `summary.json` includes SHA-256 digests for every archived file.
+These are historical measurements of `59cf28e`, not measurements of subsequent
+review fixes. Extract for inspection with:
+
+```sh
+python -m zipfile -e docs/benchmarks/2026-10-14-59cf28e/evidence.zip build/persistence-report
+python -m unittest discover -s tools -p 'test_persistence_report.py'
+```
+
+New benchmark launches continue writing disposable JSON and logs under ignored
+`build/persistence-comparison/`; CI retains those as workflow artifacts.

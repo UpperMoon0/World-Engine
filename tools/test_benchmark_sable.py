@@ -31,6 +31,8 @@ class EvidenceTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b"original")
             frozen = fingerprint(root)
+            self.assertEqual(set(frozen), {str(path.relative_to(root))
+                                          for path in (source, bundle, runtime)})
             generated.write_bytes(b"compiler cache changed")
             self.assertEqual(frozen, fingerprint(root))
             for path in (source, bundle, runtime):

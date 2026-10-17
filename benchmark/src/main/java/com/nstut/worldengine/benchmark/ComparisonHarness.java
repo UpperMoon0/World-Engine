@@ -54,7 +54,11 @@ public final class ComparisonHarness {
     private int movingBodyObservations;
 
     public ComparisonHarness() {
-        NeoForge.EVENT_BUS.register(this);
+        if (scenario != null && scenario.startsWith("dimensions")) {
+            NeoForge.EVENT_BUS.register(new PersistenceHarness());
+        } else {
+            NeoForge.EVENT_BUS.register(this);
+        }
     }
 
     @SubscribeEvent

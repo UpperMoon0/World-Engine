@@ -1,0 +1,182 @@
+[
+  {
+    "runId": "dimensions1-0-sable",
+    "engine": "sable",
+    "extraDimensions": 1,
+    "emptyTicketFiles": 1
+  },
+  {
+    "runId": "dimensions1-0-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 1,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions16-0-sable",
+    "engine": "sable",
+    "extraDimensions": 16,
+    "emptyTicketFiles": 16
+  },
+  {
+    "runId": "dimensions16-0-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 16,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions64-0-sable",
+    "engine": "sable",
+    "extraDimensions": 64,
+    "emptyTicketFiles": 64
+  },
+  {
+    "runId": "dimensions64-0-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 64,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions1-1-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 1,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions1-1-sable",
+    "engine": "sable",
+    "extraDimensions": 1,
+    "emptyTicketFiles": 1
+  },
+  {
+    "runId": "dimensions16-1-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 16,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions16-1-sable",
+    "engine": "sable",
+    "extraDimensions": 16,
+    "emptyTicketFiles": 16
+  },
+  {
+    "runId": "dimensions64-1-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 64,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions64-1-sable",
+    "engine": "sable",
+    "extraDimensions": 64,
+    "emptyTicketFiles": 64
+  },
+  {
+    "runId": "dimensions1-2-sable",
+    "engine": "sable",
+    "extraDimensions": 1,
+    "emptyTicketFiles": 1
+  },
+  {
+    "runId": "dimensions1-2-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 1,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions16-2-sable",
+    "engine": "sable",
+    "extraDimensions": 16,
+    "emptyTicketFiles": 16
+  },
+  {
+    "runId": "dimensions16-2-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 16,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions64-2-sable",
+    "engine": "sable",
+    "extraDimensions": 64,
+    "emptyTicketFiles": 64
+  },
+  {
+    "runId": "dimensions64-2-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 64,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions1-3-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 1,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions1-3-sable",
+    "engine": "sable",
+    "extraDimensions": 1,
+    "emptyTicketFiles": 1
+  },
+  {
+    "runId": "dimensions16-3-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 16,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions16-3-sable",
+    "engine": "sable",
+    "extraDimensions": 16,
+    "emptyTicketFiles": 16
+  },
+  {
+    "runId": "dimensions64-3-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 64,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions64-3-sable",
+    "engine": "sable",
+    "extraDimensions": 64,
+    "emptyTicketFiles": 64
+  },
+  {
+    "runId": "dimensions1-4-sable",
+    "engine": "sable",
+    "extraDimensions": 1,
+    "emptyTicketFiles": 1
+  },
+  {
+    "runId": "dimensions1-4-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 1,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions16-4-sable",
+    "engine": "sable",
+    "extraDimensions": 16,
+    "emptyTicketFiles": 16
+  },
+  {
+    "runId": "dimensions16-4-worldengine",
+    "engine": "worldengine",
+    "extraDimensions": 16,
+    "emptyTicketFiles": 0
+  },
+  {
+    "runId": "dimensions64-4-sable-retry1",
+    "engine": "sable",
+    "extraDimensions": 64,
+    "emptyTicketFiles": 64
+  },
+  {
+    "runId": "dimensions64-4-worldengine-retry1",
+    "engine": "worldengine",
+    "extraDimensions": 64,
+    "emptyTicketFiles": 0
+  }
+]

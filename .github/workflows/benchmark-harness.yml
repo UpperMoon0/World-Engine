@@ -7,7 +7,10 @@ on:
       - 'neoforge/src/main/java/**'
       - 'benchmark/**'
       - 'tools/*benchmark_sable.py'
+      - 'tools/*benchmark_persistence.py'
       - 'tools/test_jni_signatures.py'
+      - 'tools/test_persistence_report.py'
+      - 'docs/benchmarks/2026-10-14-59cf28e/**'
       - 'settings.gradle'
       - '.github/workflows/benchmark-harness.yml'
   workflow_dispatch:
@@ -15,11 +18,48 @@ on:
       suite:
         description: 'Smoke validation or full paired performance comparison'
         type: choice
-        options: [smoke, full]
+        options: [smoke, full, persistence]
         default: smoke
 jobs:
+  evidence-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest discover -s tools -p 'test_*.py'
+  persistence:
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'persistence'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: gradle/actions/setup-gradle@v6
+      - run: chmod +x gradlew
+      - run: python -m unittest discover -s tools -p 'test_*.py'
+      - name: Paired saves and persistence restart checks
+        run: python tools/benchmark_persistence.py --trials ${{ github.event_name == 'workflow_dispatch' && '5' || '1' }} --warmup 100 --ticks 300
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: persistence-comparison
+          path: |
+            build/persistence-comparison/**/*.json
+            build/persistence-comparison/**/*.log
+          retention-days: 14
   smoke:
-    if: github.event_name != 'workflow_dispatch' || inputs.suite != 'full'
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'smoke'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

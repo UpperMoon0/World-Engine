@@ -32,6 +32,7 @@ atlassian-ide-plugin.xml
 
 # Log file
 *.log
+*.log.gz
 
 # BlueJ files
 *.ctxt
@@ -143,3 +144,6 @@ macos/*.dmg
 **/.intentionally-empty-file.o
 
 __pycache__/
+
+# Curated, losslessly archived benchmark evidence; generated runs stay in build/.
+!/docs/benchmarks/2026-10-14-59cf28e/evidence.zip
